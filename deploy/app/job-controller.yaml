@@ -35,6 +35,30 @@ spec:
               value: "15"
             - name: HTTP_PORT
               value: "8080"
+            # Linode Object Storage credentials — used by s3_client to upload
+            # engine.log and aiperf.log after each Job finishes. The in-pod
+            # aiperf container has its own copy of these for uploading the
+            # aiperf.json / dcgm_metrics.json result files.
+            - name: S3_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: endpoint_url
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: bucket
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: secret_access_key
           readinessProbe:
             httpGet:
               path: /healthz
