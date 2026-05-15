@@ -13,9 +13,19 @@ rules:
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["create", "get", "list", "watch", "patch"]
+  # jobs/status is a separate RBAC subresource — needed by
+  # read_namespaced_job_status, which the scheduler polls every 15s.
+  - apiGroups: ["batch"]
+    resources: ["jobs/status"]
+    verbs: ["get"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
+  # pods/log is a subresource — needed by get_pod_logs() in the
+  # crash-loop detection path (k8s_client.read_namespaced_pod_log).
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
