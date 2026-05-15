@@ -74,7 +74,10 @@ function rowToJob(row: JobRow): Job {
   }
 }
 
-const JOB_SELECT = sql`
+// Built lazily — invoking sql`...` at module scope eagerly resolves the DB
+// proxy in lib/db.ts, which throws during `next build` when DATABASE_URL
+// isn't set.
+const jobSelect = () => sql`
   SELECT
     j.job_id              AS id,
     j.model_id            AS "modelId",
@@ -95,14 +98,14 @@ const JOB_SELECT = sql`
 
 export async function getJob(id: string): Promise<Job | null> {
   const rows = await sql<JobRow[]>`
-    ${JOB_SELECT} WHERE j.job_id = ${id}
+    ${jobSelect()} WHERE j.job_id = ${id}
   `
   return rows[0] ? rowToJob(rows[0]) : null
 }
 
 export async function listJobs(): Promise<Job[]> {
   const rows = await sql<JobRow[]>`
-    ${JOB_SELECT} ORDER BY j.created_at DESC
+    ${jobSelect()} ORDER BY j.created_at DESC
   `
   return rows.map(rowToJob)
 }
