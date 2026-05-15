@@ -1,0 +1,566 @@
+# =============================================================================
+# Akamai GPU Benchmark Portal — SGLang Inference Job
+# =============================================================================
+# Template rendered by the job controller at runtime.
+# Fields in {​{ }} are substituted before kubectl apply.
+#
+# Container roles
+# ---------------
+#   sglang-server (initContainer, restartPolicy: Always = K8s native sidecar)
+#                 Starts the SGLang OpenAI-compatible server on port 8000.
+#                 Uses RadixAttention for KV cache reuse and FlashInfer as
+#                 the default attention backend.
+#                 Stays alive for the entire lifetime of the Job Pod.
+#
+#   aiperf        (main container)
+#                 Waits for the SGLang /health endpoint, then drives the full
+#                 AIPerf benchmark sweep and writes results JSON to the
+#                 shared "results" emptyDir volume.
+#
+# SGLang flag mapping
+# -------------------
+#   --model-path              ← model_id        (vs vLLM --model)
+#   --context-length          ← max_model_len   (vs vLLM --max-model-len)
+#   --mem-fraction-static     ← gpu_memory_util (vs vLLM --gpu-memory-utilization)
+#   --max-running-requests    ← max_batch_size  (vs vLLM --max-num-seqs)
+#   --kv-cache-dtype          ← kv_cache_dtype  (same semantics)
+#   --chunked-prefill-size=512 ← chunked_prefill (boolean → 512 tokens or omit)
+#   FlashInfer backend        always active, no flag needed
+#   RadixAttention            always active, no flag needed
+#
+# Prerequisites
+# -------------
+#   • Kubernetes ≥ 1.29  (native sidecar support via restartPolicy: Always)
+#   • NVIDIA device plugin + nvidia-container-toolkit on GPU nodes
+#   • NVIDIA driver ≥ 535, CUDA 12.x
+#   • PVC "model-cache-pvc" (ReadWriteMany) pre-provisioned in the namespace
+#   • Namespace "default" exists
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark-{{ job_id }}-sglang
+  namespace: default
+  labels:
+    app: gpu-benchmark
+    job-id: "{{ job_id }}"
+    engine: sglang
+    gpu: "{{ gpu_type }}"         # rtx4000ada | rtxpro6000
+  annotations:
+    benchmark.akamai.com/model: "{{ model_id }}"
+    benchmark.akamai.com/quantisation: "{{ raw_quantisation }}"
+    benchmark.akamai.com/submitted-by: "{{ submitted_by }}"
+
+spec:
+  # Retain pod (and its logs) for 24 h after completion, then auto-delete.
+  ttlSecondsAfterFinished: 86400
+  # No retries — a second run on the same GPU would skew results.
+  backoffLimit: 0
+
+  template:
+    metadata:
+      labels:
+        app: gpu-benchmark
+        job-id: "{{ job_id }}"
+        engine: sglang
+    spec:
+      restartPolicy: Never
+
+      # ------------------------------------------------------------------
+      # GPU node isolation — only land on the node type the user selected,
+      # and only on nodes reserved exclusively for benchmarking.
+      # ------------------------------------------------------------------
+      nodeSelector:
+        # GPU Operator auto-labels nodes with the detected GPU product name.
+        nvidia.com/gpu.product: "{{ {'rtx-4000-ada': 'NVIDIA-RTX-4000-Ada-Generation', 'rtx-pro-6000': 'NVIDIA-RTX-PRO-6000'}[gpu_type] }}"
+      tolerations:
+        - key: gpu-benchmark
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+      # ------------------------------------------------------------------
+      # Volumes
+      # ------------------------------------------------------------------
+      volumes:
+        # Pre-pulled model weights or HuggingFace cache shared across nodes.
+        # Falls back to emptyDir when model_cache_pvc is not set (dev/test runs).
+        - name: model-cache
+          {%- if model_cache_pvc %}
+          persistentVolumeClaim:
+            claimName: {{ model_cache_pvc }}
+          {%- else %}
+          emptyDir: {}
+          {%- endif %}
+        # Scratch space for AIPerf output JSON, shared with the
+        # results-collector container.
+        - name: results
+          emptyDir: {}
+
+      # ------------------------------------------------------------------
+      # initContainers
+      # restartPolicy: Always  →  K8s native sidecar (≥ 1.29).
+      # The container keeps running alongside main containers and is only
+      # terminated after all main containers have exited.
+      # ------------------------------------------------------------------
+      initContainers:
+
+        # ----------------------------------------------------------------
+        # Container 1 — SGLang inference server (sidecar)
+        # Image pinned; update the tag to match the tested SGLang release.
+        # Tag format: v{version}-cu{cuda_version}  (e.g. v0.5.1-cu126)
+        # ----------------------------------------------------------------
+        - name: sglang-server
+          image: {{ sglang_image }}
+          restartPolicy: Always          # native sidecar — stays running
+
+          command: ["python", "-m", "sglang.launch_server"]
+          args:
+            - "--model-path={{ model_id }}"
+            - "--tokenizer-path={{ model_id }}"
+            - "--dtype={{ dtype }}"                             # auto | float16 | bfloat16
+            {%- if quantisation and quantisation not in ('fp16', 'bf16') %}
+            - "--quantization={{ quantisation }}"
+            {%- endif %}
+            - "--context-length={{ max_model_len }}"
+            - "--mem-fraction-static={{ gpu_memory_util }}"    # e.g. 0.90
+            - "--max-running-requests={{ max_batch_size }}"    # max concurrent requests
+            - "--kv-cache-dtype={{ kv_cache_dtype }}"          # auto | fp8
+            {%- if chunked_prefill %}
+            - "--chunked-prefill-size=512"
+            {%- endif %}
+            - "--host=0.0.0.0"
+            - "--port=8000"
+
+          env:
+            - name: HF_HOME
+              value: /models/hf-cache
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+                  optional: true        # only required for gated models
+
+          ports:
+            - name: openai
+              containerPort: 8000
+              protocol: TCP
+
+          resources:
+            requests:
+              nvidia.com/gpu: "1"
+              memory: "{{ memory_request }}"   # e.g. "16Gi"
+              cpu: "2"
+            limits:
+              nvidia.com/gpu: "1"
+              memory: "{{ memory_limit }}"     # e.g. "24Gi" (RTX 4000 Ada: 20 GB VRAM + system)
+
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+
+          # SGLang /health runs a test inference pass — allow generous startup time.
+          # failureThreshold × periodSeconds = maximum wait before giving up.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 90      # up to 15 min for very large models
+            timeoutSeconds: 15        # SGLang /health performs a test inference pass
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 15
+            failureThreshold: 4
+            timeoutSeconds: 15
+
+      # ------------------------------------------------------------------
+      # Main containers
+      # Run sequentially via coordination file.
+      # The Job completes when ALL main containers exit 0.
+      # ------------------------------------------------------------------
+      containers:
+
+        # ----------------------------------------------------------------
+        # Container 2 — AIPerf benchmark + DCGM collection + S3 upload
+        # ----------------------------------------------------------------
+        - name: aiperf
+          image: python:3.12-slim
+
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -eo pipefail
+
+              apt-get update -qq && apt-get install -y -qq curl
+              pip install --quiet --no-cache-dir aiperf==0.7.0 boto3==1.35.0
+
+              # ----------------------------------------------------------
+              # Wait for SGLang server before starting anything
+              # ----------------------------------------------------------
+              echo "[aiperf] Waiting for SGLang server on localhost:8000 ..."
+              until curl -sf http://localhost:8000/health > /dev/null 2>&1; do
+                echo "[aiperf] Engine not ready yet — sleeping 5s"; sleep 5
+              done
+              echo "[aiperf] Engine is healthy."
+
+              # ----------------------------------------------------------
+              # DCGM poller — started after engine is ready so samples
+              # cover only the active benchmark window.
+              # Polls GPU Operator DCGM Exporter every 2s. Writes
+              # dcgm_metrics.json with raw timeseries + summary on SIGTERM.
+              # ----------------------------------------------------------
+              cat > /tmp/dcgm_poll.py << 'DCGM_PYEOF'
+              import signal, sys, time, json, requests
+              from datetime import datetime, timezone
+
+              URL      = "http://nvidia-dcgm-exporter.gpu-operator.svc.cluster.local:9400/metrics"
+              OUT      = "/results/dcgm_metrics.json"
+              INTERVAL = 2  # seconds
+
+              # Fields to extract — keyed by Prometheus metric name prefix.
+              # Value is the sample dict key name.
+              FIELDS = {
+                  "DCGM_FI_DEV_GPU_UTIL":          "gpu_util_pct",
+                  "DCGM_FI_DEV_FB_USED":           "vram_used_mb",
+                  "DCGM_FI_DEV_FB_FREE":           "vram_free_mb",
+                  "DCGM_FI_DEV_FB_RESERVED":       "vram_reserved_mb",
+                  "DCGM_FI_DEV_POWER_USAGE":       "power_w",
+                  "DCGM_FI_DEV_GPU_TEMP":          "gpu_temp_c",
+                  "DCGM_FI_DEV_MEMORY_TEMP":       "mem_temp_c",
+                  "DCGM_FI_DEV_SM_CLOCK":          "sm_clock_mhz",
+                  "DCGM_FI_DEV_MEM_CLOCK":         "mem_clock_mhz",
+                  "DCGM_FI_DEV_MEM_COPY_UTIL":     "mem_copy_util_pct",
+                  "DCGM_FI_PROF_DRAM_ACTIVE":      "dram_active",
+                  "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE": "tensor_active",
+                  "DCGM_FI_PROF_GR_ENGINE_ACTIVE": "gr_engine_active",
+                  "DCGM_FI_PROF_PCIE_TX_BYTES":    "pcie_tx_bytes",
+                  "DCGM_FI_PROF_PCIE_RX_BYTES":    "pcie_rx_bytes",
+                  "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION": "total_energy_mj",
+              }
+
+              samples    = []
+              gpu_name   = None
+              start_time = None
+              t0         = None
+
+              def parse(text):
+                  """Extract one float value per field from a Prometheus metrics scrape.
+                  Splits on '} ' to safely handle label values containing spaces
+                  (e.g. modelName="NVIDIA RTX 4000 Ada Generation").
+                  """
+                  global gpu_name
+                  result = {}
+                  for line in text.splitlines():
+                      if line.startswith("#"):
+                          continue
+                      for prefix, key in FIELDS.items():
+                          if line.startswith(prefix + "{"):
+                              parts = line.split("} ")
+                              if len(parts) < 2:
+                                  continue
+                              try:
+                                  result[key] = float(parts[1].split()[0])
+                              except ValueError:
+                                  pass
+                              # Extract GPU name once from any field's labels
+                              if gpu_name is None and 'modelName="' in line:
+                                  try:
+                                      gpu_name = line.split('modelName="')[1].split('"')[0]
+                                  except IndexError:
+                                      pass
+                              break
+                  return result
+
+              def percentiles(values, keys):
+                  """Return a stat dict keyed by keys.
+                  Key names are interpreted: avg, min, max/peak, or pN (e.g. p50, p95, p5).
+                  """
+                  if not values:
+                      return None
+                  s = sorted(values)
+                  n = len(s)
+                  def p(pct):
+                      idx = max(0, int(pct / 100 * n) - 1)
+                      return s[idx]
+                  def resolve(k):
+                      if k == "avg":   return round(sum(s) / n, 3)
+                      if k in ("min",):         return s[0]
+                      if k in ("max", "peak"):  return s[-1]
+                      if k.startswith("p"):
+                          try:             return p(float(k[1:]))
+                          except ValueError: pass
+                      return None
+                  return {k: round(resolve(k), 3) for k in keys}
+
+              def shutdown(sig, frame):
+                  end_time = datetime.now(timezone.utc).isoformat()
+                  duration_s = round(time.monotonic() - t0, 2) if t0 else None
+                  n = len(samples)
+
+                  def col(key):
+                      return [s[key] for s in samples if key in s]
+
+                  # VRAM total = used + free + reserved (first sample where all three present)
+                  vram_total_mb = None
+                  for s in samples:
+                      if all(k in s for k in ("vram_used_mb", "vram_free_mb", "vram_reserved_mb")):
+                          vram_total_mb = int(s["vram_used_mb"] + s["vram_free_mb"] + s["vram_reserved_mb"])
+                          break
+
+                  vram_peak_mb = max(col("vram_used_mb"), default=None)
+                  vram_headroom_pct = (
+                      round((vram_total_mb - vram_peak_mb) / vram_total_mb * 100, 1)
+                      if vram_total_mb and vram_peak_mb else None
+                  )
+
+                  dram_vals   = col("dram_active")
+                  tensor_vals = col("tensor_active")
+
+                  # Thermal throttle: SM clock dropped >5% below its own max
+                  # Uses only active samples (gpu_util > 5%) to exclude idle/startup clock.
+                  active_sm_clocks = [s["sm_clock_mhz"] for s in samples
+                                      if s.get("gpu_util_pct", 0) > 5 and "sm_clock_mhz" in s]
+                  if len(active_sm_clocks) >= 2:
+                      sm_max = max(active_sm_clocks)
+                      throttle_detected = min(active_sm_clocks) < sm_max * 0.95
+                  else:
+                      throttle_detected = False
+
+                  # Energy delta (total_energy_mj is a monotonic counter)
+                  energy_vals = col("total_energy_mj")
+                  energy_delta_j = (
+                      round((energy_vals[-1] - energy_vals[0]) / 1000, 1)
+                      if len(energy_vals) >= 2 else None
+                  )
+
+                  summary = {
+                      "gpu_util_pct":       percentiles(col("gpu_util_pct"),   ["avg","p50","p95","peak"]),
+                      "vram_used_mb":       percentiles(col("vram_used_mb"),   ["avg","p50","p95","peak"]),
+                      "vram_used_gb":       percentiles([v/1024 for v in col("vram_used_mb")], ["avg","p50","p95","peak"]),
+                      "vram_total_mb":      vram_total_mb,
+                      "vram_headroom_pct":  vram_headroom_pct,
+                      "power_w":            percentiles(col("power_w"),        ["avg","p50","p95","peak"]),
+                      "gpu_temp_c":         percentiles(col("gpu_temp_c"),     ["avg","p50","p95","peak"]),
+                      "sm_clock_mhz":       percentiles(col("sm_clock_mhz"),  ["avg","p50","p95","peak"]),
+                      "mem_clock_mhz":      percentiles(col("mem_clock_mhz"), ["avg","p50","p95","peak"]),
+                      "mem_copy_util_pct":  percentiles(col("mem_copy_util_pct"), ["avg","p50","p95","peak"]),
+                      "dram_active":        percentiles(dram_vals,             ["avg","p50","p95","peak"]),
+                      "tensor_active":      percentiles(tensor_vals,           ["avg","p50","p95","peak"]),
+                      "gr_engine_active":   percentiles(col("gr_engine_active"), ["avg","p50","p95","peak"]),
+                      "throttle_detected":  throttle_detected,
+                      "energy_delta_j":     energy_delta_j,
+                      "sample_count":       n,
+                  }
+
+                  output = {
+                      "schema_version":    "2.0",
+                      "gpu_name":          gpu_name,
+                      "sample_interval_s": INTERVAL,
+                      "start_time":        start_time,
+                      "end_time":          end_time,
+                      "benchmark_duration_s": duration_s,
+                      "samples":           samples,
+                      "summary":           summary,
+                  }
+                  with open(OUT, "w") as f:
+                      json.dump(output, f, indent=2)
+                  print(f"[dcgm] written {n} samples → {OUT}")
+                  print(f"[dcgm] throttle={throttle_detected}")
+                  sys.exit(0)
+
+              signal.signal(signal.SIGTERM, shutdown)
+              signal.signal(signal.SIGINT,  shutdown)
+
+              print(f"[dcgm] polling {URL} every {INTERVAL}s")
+              start_time = datetime.now(timezone.utc).isoformat()
+              t0 = time.monotonic()
+              while True:
+                  try:
+                      r = requests.get(URL, timeout=3)
+                      sample = parse(r.text)
+                      if sample:
+                          sample["elapsed_s"] = round(time.monotonic() - t0, 2)
+                          samples.append(sample)
+                  except Exception as e:
+                      print(f"[dcgm] poll error: {e}")
+                  time.sleep(INTERVAL)
+              DCGM_PYEOF
+
+              python3 /tmp/dcgm_poll.py &
+              DCGM_PID=$!
+
+              # ----------------------------------------------------------
+              # Run AIPerf benchmark (single run or concurrency sweep)
+              # ----------------------------------------------------------
+              {% if is_sweep %}
+              echo "[aiperf] Starting concurrency sweep: {{ sweep_levels }}"
+              for CONC in {{ sweep_levels }}; do
+                echo "[aiperf] Sweep pass — concurrency ${CONC}"
+                mkdir -p /results/artifacts/c${CONC}
+                aiperf profile \
+                  --model "{{ model_id }}" \
+                  --url http://localhost:8000 \
+                  --endpoint-type chat \
+                  --tokenizer "{{ model_id }}" \
+                  --concurrency "${CONC}" \
+                  --request-count "$(( CONC * 10 ))" \
+                  --isl "{{ input_tokens_mean }}" \
+                  --osl "{{ output_tokens_mean }}" \
+                  --benchmark-duration "120" \
+                  --warmup-request-count 2 \
+                  --extra-inputs min_tokens:"{{ output_tokens_mean }}" \
+                  --extra-inputs ignore_eos:true \
+                  {% if streaming %}--streaming \
+                  {% endif %}--use-legacy-max-tokens \
+                  --artifact-dir /results/artifacts/c${CONC} \
+                  --profile-export-file output.json
+                echo "[aiperf] Sweep pass at concurrency ${CONC} complete."
+              done
+              echo "[aiperf] Sweep complete."
+              {% else %}
+              echo "[aiperf] Starting benchmark."
+              aiperf profile \
+                --model "{{ model_id }}" \
+                --url http://localhost:8000 \
+                --endpoint-type chat \
+                --tokenizer "{{ model_id }}" \
+                --concurrency "{{ concurrency }}" \
+                --request-count "{{ request_count }}" \
+                --isl "{{ input_tokens_mean }}" \
+                --osl "{{ output_tokens_mean }}" \
+                --benchmark-duration "120" \
+                  --warmup-request-count 2 \
+                --extra-inputs min_tokens:"{{ output_tokens_mean }}" \
+                --extra-inputs ignore_eos:true \
+                {% if streaming %}--streaming \
+                {% endif %}--use-legacy-max-tokens \
+                --artifact-dir /results/artifacts \
+                --profile-export-file output.json
+              echo "[aiperf] Benchmark complete."
+              {% endif %}
+
+              # ----------------------------------------------------------
+              # Stop DCGM poller — SIGTERM triggers the summary write
+              # ----------------------------------------------------------
+              kill -TERM $DCGM_PID
+              wait $DCGM_PID || true
+              echo "[dcgm] Poller stopped."
+
+              # ----------------------------------------------------------
+              # Upload both artifacts to Linode Object Storage
+              # ----------------------------------------------------------
+              python3 - << 'UPLOAD_PYEOF'
+              import boto3, json, os, sys
+              from botocore.config import Config
+
+              s3 = boto3.client(
+                  "s3",
+                  endpoint_url=os.environ["S3_ENDPOINT_URL"],
+                  aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+                  aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+                  config=Config(
+                      signature_version="s3v4",
+                      s3={"addressing_style": "path"},
+                  ),
+              )
+              bucket = os.environ["S3_BUCKET"]
+              job_id = os.environ["JOB_ID"]
+              is_sweep = os.environ.get("IS_SWEEP", "false") == "true"
+              sweep_levels = os.environ.get("SWEEP_LEVELS", "").split()
+
+              def inject_and_upload(local_path, s3_key):
+                  """Inject akabench_job_id and upload a single aiperf output file."""
+                  if not os.path.exists(local_path):
+                      print(f"[upload] WARNING: {local_path} not found", file=sys.stderr)
+                      return False
+                  with open(local_path) as f:
+                      data = json.load(f)
+                  enriched = {}
+                  for k, v in data.items():
+                      if k == "benchmark_id":
+                          enriched["akabench_job_id"] = job_id
+                      enriched[k] = v
+                  with open(local_path, "w") as f:
+                      json.dump(enriched, f, indent=2)
+                  s3.upload_file(local_path, bucket, s3_key)
+                  print(f"[upload] s3://{bucket}/{s3_key} ✓")
+                  return True
+
+              failed = False
+              if is_sweep:
+                  for conc in sweep_levels:
+                      ok = inject_and_upload(
+                          f"/results/artifacts/c{conc}/output.json",
+                          f"{job_id}/aiperf_c{conc}.json",
+                      )
+                      if not ok:
+                          failed = True
+              else:
+                  ok = inject_and_upload("/results/artifacts/output.json", f"{job_id}/aiperf.json")
+                  if not ok:
+                      failed = True
+
+              # DCGM metrics cover the entire run regardless of sweep mode
+              dcgm_path = "/results/dcgm_metrics.json"
+              if os.path.exists(dcgm_path):
+                  s3.upload_file(dcgm_path, bucket, f"{job_id}/dcgm_metrics.json")
+                  print(f"[upload] s3://{bucket}/{job_id}/dcgm_metrics.json ✓")
+              else:
+                  print(f"[upload] WARNING: {dcgm_path} not found", file=sys.stderr)
+                  failed = True
+
+              sys.exit(1 if failed else 0)
+              UPLOAD_PYEOF
+
+          env:
+            - name: JOB_ID
+              value: "{{ job_id }}"
+            - name: IS_SWEEP
+              value: "{{ 'true' if is_sweep else 'false' }}"
+            - name: SWEEP_LEVELS
+              value: "{{ sweep_levels }}"
+            - name: S3_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: endpoint_url
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: bucket
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: secret_access_key
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+                  optional: true
+
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "8Gi"
+
+          volumeMounts:
+            - name: results
+              mountPath: /results

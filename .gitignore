@@ -1,0 +1,98 @@
+# ── Environment / secrets ────────────────────────────────────────
+# Keep these at the top — most important to never leak.
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# ── Credentials / certs / keys ───────────────────────────────────
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+kubeconfig
+.kubeconfig
+
+# ── Next.js (frontend/) ──────────────────────────────────────────
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.*
+frontend/.yarn/*
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/versions
+frontend/coverage/
+frontend/.vercel
+frontend/next-env.d.ts
+
+# ── Root-level next/ build artefacts ─────────────────────────────
+next/.next/
+next/app/
+next/out/
+
+# ── TypeScript build info (any location) ─────────────────────────
+*.tsbuildinfo
+
+# ── Node (anywhere) ──────────────────────────────────────────────
+node_modules/
+
+# ── Python ───────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
+.eggs/
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+
+# ── Claude / local IDE state ─────────────────────────────────────
+.claude/settings.local.json
+.claude/.credentials*
+.claude/cache/
+
+# ── Editors ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ───────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Logs ─────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Kubernetes / deploy local overrides ──────────────────────────
+deploy/local/
+*.local.yaml

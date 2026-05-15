@@ -1,0 +1,42 @@
+# =============================================================================
+# AKAbench — Model Cache PersistentVolumeClaim (Production / Linode LKE)
+# =============================================================================
+# 8 TiB block storage volume for HuggingFace model weights and TRT-LLM
+# compiled engine binaries shared across all benchmark job runs.
+#
+# StorageClass: linode-block-storage-retain
+#   • Block storage backed (NVMe on Linode)
+#   • Retain reclaim policy — volume survives PVC deletion (prevents accidental
+#     loss of cached model weights, which can take hours to re-download)
+#
+# Access mode: ReadWriteOnce
+#   • Linode block storage supports RWO only
+#   • Benchmark jobs run serially (backoffLimit: 0) so RWO is sufficient;
+#     only one pod mounts the volume at a time
+#
+# Apply:
+#   kubectl apply -f deploy/infra/model-cache-pvc.yaml
+#
+# Verify:
+#   kubectl get pvc model-cache-pvc -n default
+#   # STATUS should transition from Pending → Bound within ~30 s
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-cache-pvc
+  namespace: default
+  labels:
+    app: akabench
+    component: model-cache
+  annotations:
+    # Remind operators never to delete this PVC without backing up the cache.
+    akabench.akamai.com/note: "Contains cached HF weights and TRT-LLM engine binaries. Deletion requires re-downloading all models."
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: linode-block-storage-retain
+  resources:
+    requests:
+      storage: 5Ti

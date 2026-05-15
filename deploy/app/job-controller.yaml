@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: job-controller
+  namespace: default
+spec:
+  replicas: 1           # must be 1 — multiple replicas would double-submit jobs
+  selector:
+    matchLabels:
+      app: job-controller
+  template:
+    metadata:
+      labels:
+        app: job-controller
+    spec:
+      serviceAccountName: job-controller
+
+      containers:
+        - name: job-controller
+          image: registry.akamai.internal/akabench/job-controller:latest   # replaced by `make release`
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: NATS_URL
+              value: "nats://nats.default.svc.cluster.local:4222"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: database-url   # postgresql://user:pass@postgres:5432/akabench
+            - name: K8S_NAMESPACE
+              value: "default"
+            - name: POLL_INTERVAL_SECONDS
+              value: "15"
+            - name: HTTP_PORT
+              value: "8080"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: job-controller
+  namespace: default
+spec:
+  selector:
+    app: job-controller
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http

@@ -1,0 +1,2862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Akamai GPU Benchmark Portal — UI Wireframe</title>
+<style>
+  :root {
+    --aka-blue: #009BDE;
+    --aka-blue-dark: #0078b0;
+    --aka-navy: #00234b;
+    --aka-light: #e8f5fd;
+    --aka-green: #22c55e;
+    --aka-amber: #f59e0b;
+    --aka-red: #ef4444;
+    --aka-gray-50: #f9fafb;
+    --aka-gray-100: #f3f4f6;
+    --aka-gray-200: #e5e7eb;
+    --aka-gray-300: #d1d5db;
+    --aka-gray-400: #9ca3af;
+    --aka-gray-500: #6b7280;
+    --aka-gray-600: #4b5563;
+    --aka-gray-700: #374151;
+    --aka-gray-800: #1f2937;
+    --aka-gray-900: #111827;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -4px rgba(0,0,0,.1);
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--aka-gray-100);
+    color: var(--aka-gray-800);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── TOP NAV ── */
+  .topnav {
+    background: var(--aka-navy);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 52px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-md);
+  }
+  .topnav-left { display: flex; align-items: center; gap: 16px; }
+  .aka-logo {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -.3px;
+  }
+  .aka-logo span { color: var(--aka-blue); }
+  .topnav-divider { width: 1px; height: 24px; background: rgba(255,255,255,.2); }
+  .portal-title { color: rgba(255,255,255,.7); font-size: 13px; }
+  .topnav-right { display: flex; align-items: center; gap: 12px; }
+  .topnav-nav { display: flex; align-items: center; gap: 4px; }
+  .nav-link {
+    color: rgba(255,255,255,.6); font-size: 12px; font-weight: 500;
+    padding: 6px 12px; border-radius: 5px; cursor: pointer;
+    transition: all .15s; text-decoration: none;
+  }
+  .nav-link:hover { color: #fff; background: rgba(255,255,255,.08); }
+  .nav-link.active { color: #fff; background: rgba(0,155,222,.25); }
+  .badge-internal {
+    background: rgba(0,155,222,.2);
+    color: var(--aka-blue);
+    border: 1px solid rgba(0,155,222,.4);
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  .user-chip {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 20px;
+    padding: 4px 12px 4px 6px;
+    color: #fff;
+    font-size: 12px;
+  }
+  .user-avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--aka-blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #fff;
+  }
+
+  .btn-run-benchmark {
+    padding: 9px 22px; border-radius: 7px; border: none;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    background: var(--aka-green); color: #fff;
+    display: flex; align-items: center; gap: 8px;
+    transition: all .15s; white-space: nowrap; font-style: normal;
+    box-shadow: 0 0 0 3px rgba(34,197,94,.2), 0 2px 6px rgba(34,197,94,.35);
+    letter-spacing: .01em;
+  }
+  .btn-run-benchmark:hover {
+    background: #16a34a;
+    box-shadow: 0 0 0 4px rgba(34,197,94,.25), 0 4px 12px rgba(34,197,94,.4);
+    transform: translateY(-1px);
+  }
+  .btn-run-benchmark:disabled {
+    background: var(--aka-gray-200); color: var(--aka-gray-400);
+    cursor: not-allowed; box-shadow: none; transform: none;
+  }
+  .btn-run-icon {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(255,255,255,.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; flex-shrink: 0;
+  }
+
+  /* ── CONFIRMATION MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 20px 40px rgba(0,0,0,.2);
+    width: 420px; max-width: 90vw;
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--aka-gray-100);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .modal-icon {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(0,155,222,.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .modal-title { font-weight: 700; font-size: 14px; color: var(--aka-gray-800); }
+  .modal-body { padding: 16px 20px; }
+  .modal-config-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+  .modal-config-table td { padding: 5px 0; font-size: 12px; vertical-align: top; }
+  .modal-config-table td:first-child {
+    color: var(--aka-gray-500); font-weight: 500; width: 110px;
+  }
+  .modal-config-table td:last-child { color: var(--aka-gray-800); font-weight: 600; }
+  .modal-warning {
+    background: #fffbeb; border: 1px solid rgba(245,158,11,.35);
+    border-radius: 6px; padding: 8px 12px;
+    font-size: 11px; color: #92400e;
+    display: flex; align-items: flex-start; gap: 6px;
+    margin-bottom: 4px;
+  }
+  .modal-footer {
+    padding: 12px 20px 16px;
+    display: flex; justify-content: flex-end; gap: 8px;
+    border-top: 1px solid var(--aka-gray-100);
+  }
+
+  /* ── JOBS PAGE ── */
+  .page { display: none; }
+  .page.active { display: block; }
+  .jobs-page-wrap {
+    max-width: 1400px; margin: 0 auto; padding: 20px 24px;
+  }
+  .jobs-page-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+  }
+  .jobs-page-title { font-size: 16px; font-weight: 700; color: var(--aka-gray-800); }
+  .jobs-table-wrap {
+    background: #fff; border-radius: var(--radius);
+    border: 1px solid var(--aka-gray-200); box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .jobs-table { width: 100%; border-collapse: collapse; }
+  .jobs-table th {
+    text-align: left; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: var(--aka-gray-500); padding: 10px 16px;
+    border-bottom: 1px solid var(--aka-gray-200);
+    background: var(--aka-gray-50);
+  }
+  .jobs-table td {
+    padding: 12px 16px; font-size: 12px; color: var(--aka-gray-700);
+    border-bottom: 1px solid var(--aka-gray-100);
+    vertical-align: middle;
+  }
+  .jobs-table tr:last-child td { border-bottom: none; }
+  .jobs-table tr:hover td { background: var(--aka-gray-50); }
+  .job-status {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 8px; border-radius: 99px;
+    font-size: 11px; font-weight: 600;
+  }
+  .job-status.running { background: rgba(0,155,222,.1); color: var(--aka-blue); }
+  .job-status.done { background: #dcfce7; color: #166534; }
+  .job-status.failed { background: #fee2e2; color: #991b1b; }
+  .job-status.queued { background: var(--aka-gray-100); color: var(--aka-gray-600); }
+  .status-pulse { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; }
+  .job-model { font-weight: 600; color: var(--aka-gray-800); }
+  .job-engine-badge {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 700;
+  }
+  .job-engine-badge.trt { background: rgba(0,155,222,.12); color: var(--aka-blue); }
+  .job-engine-badge.vllm { background: #dcfce7; color: #166534; }
+  .job-engine-badge.sglang { background: #fff6e3; color: #854d0e; }
+  .btn-view {
+    padding: 4px 10px; border-radius: 5px; border: 1px solid var(--aka-gray-200);
+    font-size: 11px; font-weight: 600; color: var(--aka-gray-600);
+    background: #fff; cursor: pointer; transition: all .15s;
+  }
+  .btn-view:hover { border-color: var(--aka-blue); color: var(--aka-blue); background: var(--aka-light); }
+
+  /* ── MAIN LAYOUT ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+    padding: 16px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .panel-model { grid-column: 1; grid-row: 1 / 3; }
+  .panel-engine { grid-column: 2; grid-row: 1; }
+  .panel-hardware { grid-column: 2; grid-row: 2; }
+
+  /* Panels */
+  .panel {
+    background: #fff;
+    border-radius: var(--radius);
+    border: 1px solid var(--aka-gray-200);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--aka-gray-100);
+  }
+  .panel-title {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 600; font-size: 13px; color: var(--aka-gray-800);
+  }
+  .step-badge {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--aka-blue); color: #fff;
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .panel-body { padding: 16px 18px; }
+
+  /* ── STEP 1: HARDWARE ── */
+  .gpu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .gpu-card {
+    border: 2px solid var(--aka-gray-200);
+    border-radius: var(--radius);
+    padding: 14px;
+    cursor: pointer;
+    transition: all .15s;
+    position: relative;
+  }
+  .gpu-card.selected {
+    border-color: var(--aka-blue);
+    background: var(--aka-light);
+  }
+  .gpu-card.selected::after {
+    content: '✓';
+    position: absolute; top: 10px; right: 10px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--aka-blue); color: #fff;
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .gpu-option-label {
+    font-size: 10px; font-weight: 700; letter-spacing: .5px;
+    text-transform: uppercase; color: var(--aka-gray-400); margin-bottom: 4px;
+  }
+  .gpu-name { font-weight: 700; font-size: 13px; color: var(--aka-gray-800); margin-bottom: 8px; }
+  .gpu-specs { display: flex; flex-direction: column; gap: 4px; }
+  .gpu-spec { display: flex; justify-content: space-between; font-size: 12px; }
+  .gpu-spec-label { color: var(--aka-gray-500); }
+  .gpu-spec-value { font-weight: 600; color: var(--aka-gray-700); }
+  .gpu-tag {
+    display: inline-block; margin-top: 8px;
+    font-size: 10px; font-weight: 600; padding: 2px 7px;
+    border-radius: 3px; background: var(--aka-gray-100); color: var(--aka-gray-600);
+  }
+  .gpu-card.selected .gpu-tag { background: rgba(0,155,222,.12); color: var(--aka-blue); }
+  .gpu-card.pro .gpu-tag { background: #fef3c7; color: #92400e; }
+  .gpu-card.pro.selected .gpu-tag { background: rgba(0,155,222,.12); color: var(--aka-blue); }
+
+  /* ── STEP 2: MODEL & ENGINE ── */
+  .search-row { margin-bottom: 12px; }
+  .search-input {
+    width: 100%; padding: 8px 8px 8px 30px;
+    border: 1px solid var(--aka-gray-300); border-radius: 6px;
+    font-size: 14px; color: var(--aka-gray-700);
+    background: var(--aka-gray-50);
+    outline: none;
+  }
+  .search-input:focus {
+    border-color: var(--aka-blue);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(0,155,222,0.1);
+  }
+  .btn {
+    padding: 8px 14px;
+    border-radius: 6px; border: none;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .btn-primary { background: var(--aka-blue); color: #fff; }
+  .btn-primary:hover { background: var(--aka-blue-dark); }
+  .btn-ghost {
+    background: var(--aka-gray-100); color: var(--aka-gray-600);
+    border: 1px solid var(--aka-gray-200);
+  }
+  .btn-ghost:hover { background: var(--aka-gray-200); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+  .btn-danger { background: var(--aka-red); color: #fff; }
+  .btn-success { background: var(--aka-green); color: #fff; }
+
+  .model-result-card {
+    border: 1px solid var(--aka-gray-200); border-radius: 6px;
+    padding: 10px 12px; margin-bottom: 6px; cursor: pointer;
+    transition: all .15s;
+    display: flex; align-items: flex-start; justify-content: space-between;
+  }
+  .model-result-card:hover { border-color: var(--aka-blue); background: var(--aka-light); }
+  .model-result-card.selected { border-color: var(--aka-blue); background: var(--aka-light); }
+  .model-id { font-weight: 600; font-size: 13px; color: var(--aka-gray-800); }
+  .model-meta { font-size: 12px; color: var(--aka-gray-500); margin-top: 2px; }
+  .model-tags { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10px; font-weight: 500; padding: 1px 5px;
+    border-radius: 9999px; border: none;
+    display: inline-flex; align-items: center;
+    opacity: 0.8;
+  }
+  .tag-nvidia { border-color: #009bde; color: #009bde; background: #e8f5fd; }
+  .tag-ngc    { border-color: #009bde; color: #009bde; background: #e8f5fd; }
+  .tag-nvfp4  { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+  .tag-apache { border-color: #22c55e; color: #166534; background: #f0fdf4; }
+  .tag-mit    { border-color: #22c55e; color: #166534; background: #f0fdf4; }
+  .tag-gated  { border-color: #f59e0b; color: #92400e; background: #fffbeb; }
+  .tag-fp8    { border-color: #e5e7eb; color: #6b7280; background: #f3f4f6; }
+  .tag-hot    { border-color: #e5e7eb; color: #6b7280; background: #f3f4f6; }
+
+  .compat-row {
+    display: flex; gap: 6px; align-items: center;
+    font-size: 11px; font-weight: 600;
+  }
+  .compat-ok { color: var(--aka-green); }
+  .compat-warn { color: var(--aka-amber); }
+  .compat-block { color: var(--aka-red); }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--aka-gray-400);
+    margin: 12px 0 8px;
+  }
+
+  .engine-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .engine-card {
+    border: 2px solid var(--aka-gray-200); border-radius: 6px;
+    padding: 12px; cursor: pointer; transition: all .15s;
+    position: relative;
+  }
+  .engine-card.selected { border-color: var(--aka-blue); background: var(--aka-light); }
+  .engine-card.disabled { opacity: .45; pointer-events: none; }
+  .engine-name { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+  .engine-desc { font-size: 11px; color: var(--aka-gray-500); line-height: 1.4; }
+  .engine-best-for {
+    margin-top: 8px; font-size: 11px;
+    color: var(--aka-blue); font-weight: 500;
+  }
+  .engine-card.selected::after {
+    content: '✓';
+    position: absolute; top: 8px; right: 8px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--aka-blue); color: #fff;
+    font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .quant-row {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+  }
+  .quant-chip {
+    padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;
+    border: 1.5px solid var(--aka-gray-200); cursor: pointer; transition: all .1s;
+    color: var(--aka-gray-600); background: #fff;
+  }
+  .quant-chip.selected { border-color: var(--aka-blue); background: var(--aka-light); color: var(--aka-blue); }
+  .quant-chip.disabled { opacity: .4; text-decoration: line-through; cursor: not-allowed; }
+
+  .compat-notice {
+    margin-top: 10px; padding: 8px 10px;
+    background: #fef3c7; border: 1px solid #f59e0b;
+    border-radius: 5px; font-size: 11px; color: #78350f;
+  }
+  .compat-notice.error { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+  .compat-notice.info { background: var(--aka-light); border-color: var(--aka-blue); color: var(--aka-blue-dark); }
+
+  /* MODEL ADVISOR */
+  .advisor-panel {
+    border: 1.5px dashed var(--aka-blue);
+    border-radius: var(--radius);
+    background: var(--aka-light);
+    padding: 12px 14px;
+    margin-top: 12px;
+  }
+  .advisor-header {
+    display: flex; align-items: center; gap: 6px;
+    font-weight: 700; font-size: 12px; color: var(--aka-blue);
+    margin-bottom: 10px;
+  }
+  .advisor-icon { font-size: 14px; }
+  .advisor-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .advisor-card {
+    background: #fff; border: 1px solid rgba(0,155,222,.25);
+    border-radius: 6px; padding: 10px;
+  }
+  .advisor-card-type {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .4px; color: var(--aka-blue); margin-bottom: 4px;
+  }
+  .advisor-model-name { font-weight: 600; font-size: 11px; margin-bottom: 4px; }
+  .advisor-rationale { font-size: 11px; color: var(--aka-gray-500); line-height: 1.4; }
+  .advisor-footer { display: flex; justify-content: flex-end; margin-top: 6px; }
+
+  /* ── STEP 3: PARAMETERS ── */
+  .span-full { grid-column: 1 / -1; }
+
+  .tab-bar {
+    display: flex; border-bottom: 1px solid var(--aka-gray-200); margin-bottom: 16px;
+  }
+  .tab {
+    padding: 8px 16px; font-size: 12px; font-weight: 500;
+    color: var(--aka-gray-500); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all .15s;
+  }
+  .tab.active { color: var(--aka-blue); border-bottom-color: var(--aka-blue); font-weight: 600; }
+
+  .param-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  }
+  .param-group { display: flex; flex-direction: column; gap: 3px; }
+  .param-label { font-size: 11px; font-weight: 600; color: var(--aka-gray-600); }
+  .param-sublabel { font-size: 10px; color: var(--aka-gray-400); }
+  .param-control {
+    display: flex; align-items: center; gap: 6px; margin-top: 4px;
+  }
+  .slider-track {
+    flex: 1; height: 4px; background: var(--aka-gray-200);
+    border-radius: 2px; position: relative;
+  }
+  .slider-fill {
+    height: 100%; background: var(--aka-blue); border-radius: 2px;
+    position: absolute; left: 0; top: 0;
+  }
+  .slider-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--aka-blue); border: 2px solid #fff;
+    box-shadow: 0 0 0 2px var(--aka-blue);
+    position: absolute; top: 50%; transform: translateY(-50%);
+  }
+  .param-value {
+    font-size: 12px; font-weight: 700; color: var(--aka-gray-800);
+    min-width: 32px; text-align: right;
+  }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+  .toggle {
+    width: 32px; height: 18px; border-radius: 9px;
+    background: var(--aka-gray-200); position: relative; cursor: pointer;
+    transition: all .2s;
+  }
+  .toggle.on { background: var(--aka-blue); }
+  .toggle::after {
+    content: '';
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #fff; position: absolute; top: 2px; left: 2px;
+    transition: all .2s; box-shadow: var(--shadow-sm);
+  }
+  .toggle.on::after { left: 16px; }
+  .select-input {
+    width: 100%; padding: 6px 10px;
+    border: 1px solid var(--aka-gray-200); border-radius: 5px;
+    font-size: 12px; color: var(--aka-gray-700);
+    background: var(--aka-gray-50);
+    appearance: none;
+  }
+  .param-section-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--aka-gray-400);
+    margin: 14px 0 10px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--aka-gray-100);
+    grid-column: 1 / -1;
+  }
+
+  /* ── STEP 4: RUN & REPORT ── */
+  .run-panel-body {
+    display: grid; grid-template-columns: 260px 1fr; gap: 16px; padding: 16px 18px;
+  }
+
+  .run-controls { }
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+    margin-bottom: 12px;
+  }
+  .status-ready { background: var(--aka-gray-100); color: var(--aka-gray-600); }
+  .status-running { background: #dbeafe; color: #1e40af; }
+  .status-done { background: #dcfce7; color: #166534; }
+  .status-failed { background: #fee2e2; color: #991b1b; }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+  .status-dot.pulse {
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .3; }
+  }
+
+  .run-config-summary {
+    background: var(--aka-gray-50);
+    border: 1px solid var(--aka-gray-200);
+    border-radius: 6px; padding: 10px 12px;
+    margin-bottom: 12px; font-size: 11px;
+  }
+  .run-config-row {
+    display: flex; justify-content: space-between; padding: 3px 0;
+  }
+  .run-config-label { color: var(--aka-gray-500); }
+  .run-config-value { font-weight: 600; color: var(--aka-gray-700); }
+
+  .progress-bar-wrap {
+    background: var(--aka-gray-100); border-radius: 4px; height: 8px;
+    overflow: hidden; margin-bottom: 6px;
+  }
+  .progress-bar-fill {
+    height: 100%; background: var(--aka-blue);
+    border-radius: 4px; width: 62%;
+    animation: progressAnim 2s ease-in-out infinite alternate;
+  }
+  @keyframes progressAnim {
+    from { opacity: .8; }
+    to { opacity: 1; }
+  }
+  .progress-label { font-size: 10px; color: var(--aka-gray-500); margin-bottom: 14px; }
+
+  .live-event-log {
+    background: var(--aka-gray-900); border-radius: 6px;
+    padding: 10px 12px; margin-bottom: 12px; font-size: 10px;
+    font-family: 'SFMono-Regular', 'Consolas', monospace;
+    line-height: 1.8; max-height: 90px; overflow-y: auto;
+  }
+  .log-line { color: var(--aka-gray-400); }
+  .log-line span { color: #22c55e; }
+  .log-line.dim { color: var(--aka-gray-600); }
+
+  .btn-run {
+    width: 100%; padding: 10px;
+    background: var(--aka-blue); color: #fff;
+    border: none; border-radius: 6px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: background .15s;
+    margin-bottom: 8px;
+  }
+  .btn-run:hover { background: var(--aka-blue-dark); }
+  .btn-run:disabled { background: var(--aka-gray-300); cursor: not-allowed; }
+  .btn-report {
+    width: 100%; padding: 9px;
+    background: #fff; color: var(--aka-gray-700);
+    border: 1.5px solid var(--aka-gray-200);
+    border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-report:hover { background: var(--aka-gray-50); border-color: var(--aka-gray-300); }
+
+  /* RESULTS */
+  .results-pane { }
+  .metric-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin-bottom: 14px;
+  }
+  .metric-card {
+    border: 1px solid var(--aka-gray-200);
+    border-radius: 6px; padding: 12px;
+    text-align: center;
+  }
+  .metric-label { font-size: 10px; color: var(--aka-gray-500); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+  .metric-value { font-size: 22px; font-weight: 800; color: var(--aka-gray-800); line-height: 1; }
+  .metric-unit { font-size: 10px; color: var(--aka-gray-400); margin-top: 4px; }
+  .metric-card.highlight { border-color: var(--aka-blue); background: var(--aka-light); }
+  .metric-card.highlight .metric-value { color: var(--aka-blue); }
+
+  .chart-area {
+    border: 1px solid var(--aka-gray-200); border-radius: 6px; padding: 14px;
+  }
+  .chart-title { font-size: 11px; font-weight: 700; color: var(--aka-gray-600); margin-bottom: 12px; }
+  .bar-chart { display: flex; gap: 6px; align-items: flex-end; height: 80px; }
+  .bar-group { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+  .bar-label { font-size: 9px; color: var(--aka-gray-400); font-weight: 600; }
+  .bars { display: flex; gap: 3px; align-items: flex-end; }
+  .bar {
+    width: 18px; border-radius: 2px 2px 0 0;
+    position: relative;
+  }
+  .bar-val {
+    font-size: 9px; font-weight: 700;
+    position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .bar-ttft { background: var(--aka-blue); }
+  .bar-e2e { background: #7c3aed; }
+  .chart-legend {
+    display: flex; gap: 12px; margin-top: 8px;
+    font-size: 10px; color: var(--aka-gray-500);
+  }
+  .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+
+  /* REPORT MODAL */
+  .report-section {
+    border: 1px solid var(--aka-gray-200); border-radius: 6px; padding: 14px;
+    margin-top: 12px; background: var(--aka-gray-50);
+  }
+  .report-header { font-weight: 700; font-size: 12px; margin-bottom: 8px; color: var(--aka-gray-700); }
+  .report-format-row { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* SSE stream indicator */
+  .sse-indicator {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; color: var(--aka-green); font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .sse-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--aka-green); animation: pulse 1s infinite;
+  }
+
+  /* ANNOTATION OVERLAYS */
+  .annotation {
+    background: #fffbeb; border: 1px dashed #f59e0b;
+    border-radius: 4px; padding: 4px 8px; font-size: 10px;
+    color: #78350f; display: inline-block; margin-top: 6px;
+  }
+
+  /* Dividers */
+  hr { border: none; border-top: 1px solid var(--aka-gray-100); margin: 12px 0; }
+
+  /* Footer */
+  .wireframe-footer {
+    text-align: center; padding: 20px;
+    font-size: 11px; color: var(--aka-gray-400);
+    border-top: 1px solid var(--aka-gray-200); margin-top: 8px;
+    background: #fff;
+  }
+
+  /* ── STICKY ACTION BAR ── */
+  .action-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    background: #fff;
+    border-top: 1px solid var(--aka-gray-200);
+    height: 52px; padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 -2px 12px rgba(0,0,0,.06);
+  }
+  .action-steps { display: flex; align-items: center; gap: 16px; }
+  .action-step { display: flex; align-items: center; gap: 6px; }
+  .action-step-num {
+    display: inline-flex; height: 16px; width: 16px; flex-shrink: 0;
+    align-items: center; justify-content: center; border-radius: 50%;
+    font-size: 9px; font-weight: 700;
+  }
+  .action-step-num.done { background: var(--aka-blue); color: #fff; }
+  .action-step-num.pending { background: var(--aka-gray-200); color: var(--aka-gray-400); }
+  .action-step-label { font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .action-step-label.done { color: var(--aka-gray-700); }
+  .action-step-label.pending { color: var(--aka-gray-400); }
+  .action-connector { width: 24px; height: 1px; flex-shrink: 0; }
+  .action-connector.done { background: var(--aka-blue); }
+  .action-connector.pending { background: var(--aka-gray-200); }
+  .btn-cta {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 20px; border-radius: 7px; border: none;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    background: var(--aka-blue); color: #fff;
+    box-shadow: 0 2px 8px rgba(0,155,222,.35);
+    transition: all .15s; letter-spacing: .01em; white-space: nowrap;
+  }
+  .btn-cta:hover { background: var(--aka-blue-dark); box-shadow: 0 4px 14px rgba(0,155,222,.45); }
+  .btn-cta:disabled { background: var(--aka-gray-300); box-shadow: none; cursor: not-allowed; opacity: .4; }
+  .btn-cta-icon {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(255,255,255,.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; flex-shrink: 0;
+  }
+
+  /* Push page content up so the sticky bar doesn't overlap */
+  body { padding-bottom: 52px; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--aka-gray-200); border-radius: 3px; }
+
+  /* ── JOB DETAIL PAGE ── */
+  .job-detail-wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+  .btn-back {
+    display: inline-flex; align-items: center; gap: 5px;
+    color: var(--aka-gray-500); font-size: 12px; font-weight: 600;
+    background: none; border: none; cursor: pointer; padding: 0;
+    margin-bottom: 14px; transition: color .15s;
+  }
+  .btn-back:hover { color: var(--aka-blue); }
+  .job-detail-title-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; margin-bottom: 20px;
+  }
+  .job-detail-title { font-size: 18px; font-weight: 800; color: var(--aka-gray-900); line-height: 1.2; }
+  .job-detail-subtitle { font-size: 12px; color: var(--aka-gray-500); margin-top: 5px; }
+  .job-detail-grid { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+
+  .jd-card {
+    background: #fff; border: 1px solid var(--aka-gray-200);
+    border-radius: var(--radius); padding: 16px;
+    box-shadow: var(--shadow-sm); margin-bottom: 12px;
+  }
+  .jd-card:last-child { margin-bottom: 0; }
+  .jd-card-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--aka-gray-500);
+    margin-bottom: 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--aka-gray-100);
+  }
+
+  .jd-config-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .jd-config-table td { padding: 5px 0; vertical-align: top; line-height: 1.4; }
+  .jd-config-table td:first-child { color: var(--aka-gray-400); width: 105px; font-size: 11px; padding-right: 8px; }
+  .jd-config-table td:last-child { font-weight: 600; color: var(--aka-gray-800); }
+  .jd-config-table tr + tr td { border-top: 1px solid var(--aka-gray-50); }
+
+  .jd-metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+  .jd-metric-card { border: 1px solid var(--aka-gray-200); border-radius: 6px; padding: 10px 12px; text-align: center; }
+  .jd-metric-card.highlight { border-color: var(--aka-blue); background: var(--aka-light); }
+  .jd-metric-card.highlight .jd-metric-value { color: var(--aka-blue); }
+  .jd-metric-card.dim .jd-metric-value { color: var(--aka-gray-300); }
+  .jd-metric-card.dim .jd-metric-label,
+  .jd-metric-card.dim .jd-metric-unit { color: var(--aka-gray-300); }
+  .jd-metric-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--aka-gray-500); margin-bottom: 5px; }
+  .jd-metric-value { font-size: 20px; font-weight: 800; color: var(--aka-gray-800); line-height: 1; }
+  .jd-metric-unit { font-size: 10px; color: var(--aka-gray-400); margin-top: 3px; }
+
+  .jd-gpu-row { display: flex; gap: 8px; margin-top: 4px; }
+  .jd-gpu-card {
+    flex: 1; border: 1px solid var(--aka-gray-200); border-radius: 6px;
+    padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .jd-gpu-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--aka-gray-500); }
+  .jd-gpu-value { font-size: 18px; font-weight: 800; color: var(--aka-gray-800); }
+  .jd-gpu-unit { font-size: 11px; color: var(--aka-gray-400); margin-left: 2px; }
+
+  .jd-error-box {
+    background: #fee2e2; border: 1px solid #fca5a5;
+    border-radius: 6px; padding: 12px 14px; margin-bottom: 16px;
+  }
+  .jd-error-title { font-size: 12px; font-weight: 700; color: #991b1b; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .jd-error-msg { font-size: 12px; color: #7f1d1d; line-height: 1.55; }
+  .jd-error-suggestion {
+    margin-top: 9px; padding: 7px 10px;
+    background: rgba(0,0,0,.04); border-radius: 4px;
+    font-size: 11px; color: #92400e; line-height: 1.5;
+  }
+  .jd-error-suggestion strong { color: #78350f; }
+
+  /* ── Container logs viewer ── */
+  .jd-logs-card {
+    background: #fff; border: 1px solid var(--aka-gray-200);
+    border-radius: var(--radius); box-shadow: var(--shadow-sm); margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .jd-logs-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--aka-gray-100);
+    background: #fff;
+  }
+  .jd-logs-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--aka-gray-500);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .jd-logs-line-count {
+    font-size: 10px; font-weight: 500; text-transform: none; letter-spacing: 0;
+    color: var(--aka-gray-400); background: var(--aka-gray-100);
+    border-radius: 3px; padding: 1px 6px;
+  }
+  .jd-logs-header-actions { display: flex; gap: 6px; align-items: center; }
+  .jd-logs-copy {
+    background: #fff; border: 1px solid var(--aka-gray-200);
+    border-radius: 4px; padding: 3px 9px; font-size: 11px; font-weight: 600;
+    color: var(--aka-gray-500); cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .jd-logs-copy:hover { border-color: var(--aka-blue); color: var(--aka-blue); }
+  .jd-logs-copy.copied { background: #f0fdf4; border-color: #86efac; color: #16a34a; }
+  .jd-logs-tabs {
+    display: flex; background: var(--aka-gray-50);
+    border-bottom: 1px solid var(--aka-gray-200);
+    padding: 0 14px;
+  }
+  .jd-logs-tab {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; font-size: 11px; font-weight: 600;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    color: var(--aka-gray-400); padding: 7px 12px 5px; margin-bottom: -1px;
+    transition: all .15s;
+  }
+  .jd-logs-tab:hover { color: var(--aka-gray-600); }
+  .jd-logs-tab.active { color: var(--aka-blue); border-bottom-color: var(--aka-blue); }
+  .jd-logs-pre {
+    margin: 0; padding: 14px 16px;
+    background: #0f0f1a;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 11.5px; line-height: 1.65;
+    color: #cbd5e1;
+    white-space: pre;
+    overflow-x: auto;
+    max-height: 340px;
+    overflow-y: auto;
+  }
+  .jd-logs-pre .log-err  { color: #f87171; }
+  .jd-logs-pre .log-warn { color: #fbbf24; }
+  .jd-logs-pre .log-dim  { color: #475569; }
+  .jd-logs-pre .log-ok   { color: #4ade80; }
+
+  .btn-export {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 5px; width: 100%;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all .15s; border: 1px solid var(--aka-gray-200);
+    background: #fff; color: var(--aka-gray-700); margin-bottom: 6px;
+    text-align: left;
+  }
+  .btn-export:last-child { margin-bottom: 0; }
+  .btn-export:hover { border-color: var(--aka-blue); color: var(--aka-blue); background: var(--aka-light); }
+  .btn-export.disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+  .btn-export-meta { font-size: 10px; font-weight: 400; color: var(--aka-gray-400); margin-left: auto; white-space: nowrap; }
+
+  .jd-chart-wrap { padding-top: 20px; }
+
+  /* Make job rows clickable */
+  .jobs-table tbody tr { cursor: pointer; }
+
+  /* Param grid inside config sections */
+  .jd-param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+  .jd-param { padding: 8px 0; border-bottom: 1px solid var(--aka-gray-50); }
+  .jd-param:last-child { border-bottom: none; }
+  .jd-param.wide { grid-column: 1 / -1; }
+  .jd-param-key {
+    font-size: 10px; color: var(--aka-gray-400); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px;
+  }
+  .jd-param-val { font-size: 13px; font-weight: 700; color: var(--aka-gray-800); line-height: 1.3; }
+  .jd-param-val.muted { color: var(--aka-gray-400); font-weight: 500; font-style: italic; }
+
+  /* Main panel tab chrome */
+  .jd-sections { display: flex; flex-direction: column; gap: 0; }
+  .jd-main-tab-bar {
+    display: flex; border-bottom: 1px solid var(--aka-gray-200); margin-bottom: 14px;
+  }
+  .jd-main-tab {
+    padding: 8px 18px; font-size: 12px; font-weight: 500;
+    color: var(--aka-gray-500); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all .15s;
+  }
+  .jd-main-tab:hover { color: var(--aka-gray-700); }
+  .jd-main-tab.active { color: var(--aka-blue); border-bottom-color: var(--aka-blue); font-weight: 600; }
+  .jd-main-tab.disabled { color: var(--aka-gray-300); cursor: default; pointer-events: none; }
+  .jd-tab-panel { display: flex; flex-direction: column; gap: 12px; }
+  .jd-tab-panel.hidden { display: none; }
+
+  /* ── REPORT PAGE ── */
+  .rpt-wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+  .rpt-header-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; margin-bottom: 20px;
+  }
+  .rpt-title { font-size: 18px; font-weight: 800; color: var(--aka-gray-900); line-height: 1.2; }
+  .rpt-subtitle { font-size: 12px; color: var(--aka-gray-500); margin-top: 4px; }
+  .rpt-grid { display: grid; grid-template-columns: 1fr 272px; gap: 16px; align-items: start; }
+  .rpt-left { display: flex; flex-direction: column; gap: 12px; }
+  .rpt-right { display: flex; flex-direction: column; gap: 12px; }
+
+  .rpt-card {
+    background: #fff; border: 1px solid var(--aka-gray-200);
+    border-radius: var(--radius); padding: 16px 18px;
+    box-shadow: var(--shadow-sm);
+  }
+  .rpt-card-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--aka-gray-500);
+    margin-bottom: 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--aka-gray-100);
+  }
+
+  /* Headline stat cards */
+  .rpt-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .rpt-stat-card {
+    background: #fff; border: 1px solid var(--aka-gray-200);
+    border-radius: var(--radius); padding: 14px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .rpt-stat-card.highlight { border-color: var(--aka-blue); background: var(--aka-light); }
+  .rpt-stat-card.warn { border-color: var(--aka-amber); background: #fffbeb; }
+  .rpt-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--aka-gray-500); margin-bottom: 6px; }
+  .rpt-stat-value { font-size: 26px; font-weight: 800; color: var(--aka-gray-800); line-height: 1; }
+  .rpt-stat-card.highlight .rpt-stat-value { color: var(--aka-blue); }
+  .rpt-stat-card.warn .rpt-stat-value { color: #b45309; }
+  .rpt-stat-unit { font-size: 11px; color: var(--aka-gray-400); margin-top: 4px; }
+  .rpt-stat-sub { font-size: 10px; color: var(--aka-gray-400); margin-top: 6px; border-top: 1px solid var(--aka-gray-100); padding-top: 5px; }
+  .rpt-stat-sub span { font-weight: 700; color: var(--aka-gray-600); }
+
+  /* Percentile bar rows */
+  .rpt-pct-section { margin-bottom: 14px; }
+  .rpt-pct-section:last-child { margin-bottom: 0; }
+  .rpt-pct-section-label { font-size: 11px; font-weight: 700; color: var(--aka-gray-700); margin-bottom: 8px; }
+  .rpt-pct-row { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+  .rpt-pct-tag {
+    font-size: 10px; font-weight: 700; width: 28px; flex-shrink: 0;
+    text-align: right; color: var(--aka-gray-500);
+  }
+  .rpt-pct-track { flex: 1; height: 16px; background: var(--aka-gray-100); border-radius: 3px; overflow: hidden; position: relative; }
+  .rpt-pct-fill { height: 100%; border-radius: 3px; }
+  .rpt-pct-fill.c-blue   { background: var(--aka-blue); }
+  .rpt-pct-fill.c-amber  { background: var(--aka-amber); }
+  .rpt-pct-fill.c-red    { background: var(--aka-red); }
+  .rpt-pct-fill.c-purple { background: #7c3aed; }
+  .rpt-pct-val { font-size: 11px; font-weight: 700; color: var(--aka-gray-700); width: 72px; flex-shrink: 0; text-align: right; }
+
+  /* Sparkline */
+  .rpt-spark-wrap { display: flex; gap: 2px; align-items: flex-end; }
+  .rpt-spark-bar { flex: 1; border-radius: 1px 1px 0 0; min-height: 2px; }
+  .rpt-spark-label { font-size: 10px; color: var(--aka-gray-400); margin-top: 5px; display: flex; justify-content: space-between; }
+  .rpt-spark-legend { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+  .rpt-spark-legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--aka-gray-500); }
+  .rpt-spark-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+  /* VRAM progress */
+  .rpt-vram-bar { height: 10px; background: var(--aka-gray-100); border-radius: 5px; overflow: hidden; margin: 8px 0 4px; }
+  .rpt-vram-fill { height: 100%; border-radius: 5px; background: var(--aka-blue); }
+  .rpt-vram-fill.warn { background: var(--aka-amber); }
+
+  /* Sidebar stat rows */
+  .rpt-kv-row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--aka-gray-50); font-size: 12px; }
+  .rpt-kv-row:last-child { border-bottom: none; }
+  .rpt-kv-key { color: var(--aka-gray-400); font-size: 11px; }
+  .rpt-kv-val { font-weight: 600; color: var(--aka-gray-800); }
+  .rpt-kv-val.ok { color: #166534; }
+  .rpt-kv-val.warn { color: #b45309; }
+  .rpt-kv-val.muted { color: var(--aka-gray-400); font-weight: 400; }
+
+  /* Phase annotation band */
+  .rpt-phase-band { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+  .rpt-phase { flex: 1; }
+  .rpt-phase.idle { background: var(--aka-gray-200); }
+  .rpt-phase.warm { background: rgba(0,155,222,.35); }
+  .rpt-phase.active { background: var(--aka-blue); }
+
+  /* Export button */
+  .btn-export-rpt {
+    display: flex; align-items: center; gap: 7px;
+    padding: 8px 14px; border-radius: 6px;
+    border: 1px solid var(--aka-gray-200);
+    background: #fff; color: var(--aka-gray-700);
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all .15s;
+  }
+  .btn-export-rpt:hover { border-color: var(--aka-blue); color: var(--aka-blue); background: var(--aka-light); }
+
+  /* View report button in job detail */
+  .btn-view-report {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; padding: 9px; border-radius: 6px; margin-top: 10px;
+    border: 1.5px solid var(--aka-blue);
+    background: var(--aka-light); color: var(--aka-blue);
+    font-size: 12px; font-weight: 700; cursor: pointer;
+    transition: all .15s;
+  }
+  .btn-view-report:hover { background: var(--aka-blue); color: #fff; }
+
+  /* AIPerf metrics table */
+  .aiperf-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  .aiperf-table thead th {
+    padding: 6px 10px; text-align: right; font-weight: 600; font-size: 11px;
+    color: var(--aka-gray-500); border-bottom: 2px solid var(--aka-gray-200);
+    white-space: nowrap; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .aiperf-table thead th:first-child { text-align: left; }
+  .aiperf-table tbody tr { border-bottom: 1px solid var(--aka-gray-200); }
+  .aiperf-table tbody tr:last-child { border-bottom: none; }
+  .aiperf-table tbody td {
+    padding: 6px 10px; text-align: right; color: var(--aka-gray-700); white-space: nowrap;
+  }
+  .aiperf-table tbody td:first-child { text-align: left; color: var(--aka-gray-800); }
+  .aiperf-na { color: var(--aka-gray-700) !important; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+     TOP NAV
+══════════════════════════════════ -->
+<nav class="topnav">
+  <div class="topnav-left">
+    <div class="aka-logo">AKA<span>MAI</span></div>
+    <div class="topnav-divider"></div>
+    <div class="portal-title">GPU Benchmark Portal</div>
+    <div class="topnav-divider"></div>
+    <div class="topnav-nav">
+      <a class="nav-link active" id="nav-configure" onclick="showPage('configure')" href="#">Configure</a>
+      <a class="nav-link" id="nav-jobs" onclick="showPage('jobs')" href="#">Jobs <span style="background:var(--aka-blue);color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;margin-left:2px;">3</span></a>
+      <a class="nav-link" id="nav-reports" onclick="showPage('reports')" href="#">Reports</a>
+    </div>
+  </div>
+  <div class="topnav-right">
+    <span class="badge-internal">Internal Only</span>
+    <div class="user-chip">
+      <div class="user-avatar">JD</div>
+      Jane Doe · Sales Engineering
+    </div>
+  </div>
+</nav>
+
+
+<!-- ══════════════════════════════════
+     CONFIRMATION MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay hidden" id="confirm-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon">▶</div>
+      <div>
+        <div class="modal-title">Run Benchmark?</div>
+        <div style="font-size:11px; color:var(--aka-gray-400); margin-top:2px;">Review your configuration before submitting.</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <table class="modal-config-table">
+        <tr><td>Model</td><td>nvidia / Llama-3.1-Nemotron-70B-Instruct</td></tr>
+        <tr><td>Engine</td><td>TensorRT-LLM</td></tr>
+        <tr><td>Quantisation</td><td>FP8</td></tr>
+        <tr><td>Hardware</td><td>RTX Pro 6000</td></tr>
+      </table>
+      <div class="modal-warning">
+        ⚠ This will occupy the RTX 4000 Ada node for approximately 2–3 minutes. No other benchmarks can run on this node during that time.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeConfirmModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmRun()">Confirm &amp; Run</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     PAGE: CONFIGURE
+══════════════════════════════════ -->
+<div class="page active" id="page-configure">
+<!-- MAIN GRID  (2×2) -->
+<div class="main-grid">
+
+  <!-- ─────────────────────────────
+       PANEL 1 — MODEL SELECTION
+  ──────────────────────────────── -->
+  <div class="panel panel-model">
+    <div class="panel-header">
+      <div class="panel-title">
+        <div class="step-badge">1</div>
+        Model Selection
+      </div>
+      <span style="font-size:11px;color:var(--aka-green);font-weight:600;">✓ Model selected</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Search -->
+      <div style="position:relative;">
+        <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--aka-gray-400);" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="search-input" type="text" placeholder="Search models by name or family…" style="border-color:var(--aka-blue); background:#fff; box-shadow:0 0 0 3px rgba(0,155,222,0.1);" />
+      </div>
+
+      <!-- Model list -->
+      <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+
+        <!-- Llama 3.3 70B — selected -->
+        <div class="model-result-card selected" style="cursor:pointer;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:5px;">
+              <div class="model-id" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">meta-llama/Llama-3.3-70B-Instruct</div>
+              <svg style="flex-shrink:0; color:var(--aka-gray-400);" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </div>
+            <div class="model-meta">70B params · ~140 GB FP16 · 4.8M/mo</div>
+            <div class="model-tags">
+              <span class="tag tag-gated">GATED</span>
+              <span class="tag tag-ngc">NGC</span>
+            </div>
+          </div>
+          <div style="text-align:right; flex-shrink:0; margin-left:8px; font-size:10px; color:var(--aka-amber);">⚠ 700M MAU</div>
+        </div>
+
+        <!-- Qwen3-8B -->
+        <div class="model-result-card" style="cursor:pointer;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:5px;">
+              <div class="model-id">Qwen/Qwen3-8B</div>
+              <svg style="flex-shrink:0; color:var(--aka-gray-400);" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </div>
+            <div class="model-meta">8B params · ~16 GB FP16 · 3.2M/mo</div>
+            <div class="model-tags">
+              <span class="tag tag-apache">Apache 2.0</span>
+            </div>
+          </div>
+          <div style="text-align:right; flex-shrink:0; margin-left:8px; font-size:10px; color:var(--aka-green);">✓ Apache 2.0</div>
+        </div>
+
+        <!-- DeepSeek-R1 -->
+        <div class="model-result-card" style="cursor:pointer;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:5px;">
+              <div class="model-id" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">deepseek-ai/DeepSeek-R1-Distill-Qwen-7B</div>
+              <svg style="flex-shrink:0; color:var(--aka-gray-400);" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </div>
+            <div class="model-meta">7B params · ~14 GB FP16 · 2.1M/mo</div>
+            <div class="model-tags">
+              <span class="tag tag-mit">MIT</span>
+            </div>
+          </div>
+          <div style="text-align:right; flex-shrink:0; margin-left:8px; font-size:10px; color:var(--aka-green);">✓ MIT</div>
+        </div>
+
+        <!-- Gemma 4 -->
+        <div class="model-result-card" style="cursor:pointer;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:5px;">
+              <div class="model-id">google/gemma-4-31b-it</div>
+              <svg style="flex-shrink:0; color:var(--aka-gray-400);" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </div>
+            <div class="model-meta">31B params · ~62 GB FP16 · 2.4M/mo</div>
+            <div class="model-tags">
+              <span class="tag tag-apache">Apache 2.0</span>
+            </div>
+          </div>
+          <div style="text-align:right; flex-shrink:0; margin-left:8px; font-size:10px; color:var(--aka-green);">✓ Apache 2.0</div>
+        </div>
+
+        <!-- Mistral -->
+        <div class="model-result-card" style="cursor:pointer;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:5px;">
+              <div class="model-id" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">mistralai/Mistral-Small-3.1-24B-Instruct-2503</div>
+              <svg style="flex-shrink:0; color:var(--aka-gray-400);" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </div>
+            <div class="model-meta">24B params · ~48 GB FP16 · 1.8M/mo</div>
+            <div class="model-tags">
+              <span class="tag tag-apache">Apache 2.0</span>
+            </div>
+          </div>
+          <div style="text-align:right; flex-shrink:0; margin-left:8px; font-size:10px; color:var(--aka-green);">✓ Apache 2.0</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────
+       PANEL 2 — ENGINE & QUANTISATION
+  ──────────────────────────────── -->
+  <div class="panel panel-engine">
+    <div class="panel-header">
+      <div class="panel-title">
+        <div class="step-badge">2</div>
+        Engine &amp; Quantisation
+      </div>
+      <span style="font-size:11px;color:var(--aka-green);font-weight:600;">✓ vLLM · BF16</span>
+    </div>
+    <div class="panel-body">
+
+      <div class="section-label">Engine</div>
+      <div class="engine-grid" style="grid-template-columns:1fr 1fr 1fr;">
+
+        <div class="engine-card selected" onclick="document.querySelectorAll('.engine-card').forEach(c=>c.classList.remove('selected'));this.classList.add('selected');">
+          <div class="engine-name" style="color:var(--aka-green);">vLLM</div>
+          <div class="engine-desc">Open-source PagedAttention serving.</div>
+          <div class="engine-best-for">Best for: Throughput / concurrency</div>
+        </div>
+
+        <div class="engine-card" onclick="document.querySelectorAll('.engine-card').forEach(c=>c.classList.remove('selected'));this.classList.add('selected');">
+          <div class="engine-name" style="color:#b45309;">SGLang</div>
+          <div class="engine-desc">RadixAttention + FlashInfer backend.</div>
+          <div class="engine-best-for">Best for: Shared-prefix / RAG</div>
+        </div>
+
+        <div class="engine-card" style="opacity:.5; pointer-events:none;">
+          <div class="engine-name" style="color:var(--aka-blue);">TensorRT-LLM</div>
+          <div class="engine-desc">NVIDIA-native compiled runtime.</div>
+          <div class="engine-best-for" style="color:var(--aka-amber);">Coming soon</div>
+        </div>
+
+      </div>
+
+      <div class="section-label" style="margin-top:14px;">Quantisation</div>
+      <div class="quant-row">
+        <div class="quant-chip selected">BF16</div>
+        <div class="quant-chip">FP8</div>
+        <div class="quant-chip" style="background:#fef9ff; border-color:#7c3aed; color:#7c3aed; opacity:.4;" title="NVFP4 requires TensorRT-LLM">NVFP4</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────
+       PANEL 3 — HARDWARE SELECTION
+  ──────────────────────────────── -->
+  <div class="panel panel-hardware">
+    <div class="panel-header">
+      <div class="panel-title">
+        <div class="step-badge">3</div>
+        Hardware Selection
+      </div>
+      <span style="font-size:11px;color:var(--aka-green);font-weight:600;">✓ RTX Pro 6000 selected</span>
+    </div>
+    <div class="panel-body">
+      <div style="font-size:11px; color:var(--aka-blue); background:var(--aka-light); border:1px solid rgba(0,155,222,.25); border-radius:5px; padding:7px 10px; margin-bottom:12px;">
+        ℹ️ Llama-3.3-70B selected — 140 GB FP16 requires RTX Pro 6000 (96 GB VRAM).
+      </div>
+      <div class="gpu-grid">
+
+        <div class="gpu-card" style="opacity:.55; position:relative;">
+          <div style="position:absolute;top:8px;right:8px;font-size:9px;font-weight:700;color:var(--aka-red);background:#fee2e2;padding:2px 5px;border-radius:3px;">Too small</div>
+          <div class="gpu-option-label">Option A</div>
+          <div class="gpu-name">RTX 4000 Ada</div>
+          <div class="gpu-specs">
+            <div class="gpu-spec"><span class="gpu-spec-label">VRAM</span><span class="gpu-spec-value">20 GB</span></div>
+            <div class="gpu-spec"><span class="gpu-spec-label">BF16</span><span class="gpu-spec-value">48.7 TFLOPS</span></div>
+            <div class="gpu-spec"><span class="gpu-spec-label">Max model</span><span class="gpu-spec-value">≤ 13B FP16</span></div>
+          </div>
+          <div class="gpu-tag">Cost-efficient tier</div>
+        </div>
+
+        <div class="gpu-card selected pro">
+          <div class="gpu-option-label">Option B</div>
+          <div class="gpu-name">RTX Pro 6000</div>
+          <div class="gpu-specs">
+            <div class="gpu-spec"><span class="gpu-spec-label">VRAM</span><span class="gpu-spec-value">96 GB</span></div>
+            <div class="gpu-spec"><span class="gpu-spec-label">BF16</span><span class="gpu-spec-value">314.6 TFLOPS</span></div>
+            <div class="gpu-spec"><span class="gpu-spec-label">Max model</span><span class="gpu-spec-value">70B FP16 ✓</span></div>
+          </div>
+          <div class="gpu-tag">NVFP4 capable · Large models</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────
+       PANEL 3 — TEST PARAMETERS
+  ──────────────────────────────── -->
+  <div class="panel span-full">
+    <div class="panel-header">
+      <div class="panel-title">
+        <div class="step-badge">4</div>
+        Test Parameters
+      </div>
+      <span style="font-size:11px; color:var(--aka-gray-400);">Defaults pre-set for optimal benchmark results</span>
+    </div>
+    <div class="panel-body" style="padding-bottom:18px;">
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <div class="tab" id="tab-a" onclick="showTab('a')" style="cursor:pointer;">Load Profile</div>
+        <div class="tab active" id="tab-b" onclick="showTab('b')" style="cursor:pointer;">
+          Engine Tuning
+          <span id="tab-b-engine-badge" style="margin-left:5px; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:700; background:rgba(0,155,222,.12); color:var(--aka-blue);">TensorRT-LLM</span>
+        </div>
+      </div>
+
+      <!-- ── TAB A: Load Profile ── -->
+      <div id="panel-tab-a" class="param-grid" style="display:none;">
+
+        <div class="param-section-title">Traffic Shape</div>
+
+        <div class="param-group">
+          <div class="param-label">Virtual Users</div>
+          <div class="param-sublabel">Parallel simulated sessions</div>
+          <div class="param-control">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:25%"></div>
+              <div class="slider-thumb" style="left:calc(25% - 6px)"></div>
+            </div>
+            <div class="param-value">16</div>
+          </div>
+          <div style="font-size:10px;color:var(--aka-gray-400);">Range: 1 – 256</div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Target RPS</div>
+          <div class="param-sublabel">Requests sent per second</div>
+          <div class="param-control">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:5%"></div>
+              <div class="slider-thumb" style="left:calc(5% - 6px)"></div>
+            </div>
+            <div class="param-value">10</div>
+          </div>
+          <div style="font-size:10px;color:var(--aka-gray-400);">Range: 1 – 200 req/s</div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Measurement Window</div>
+          <div class="param-sublabel">Steady-state duration after AIPerf warmup</div>
+          <div class="param-control">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:22%"></div>
+              <div class="slider-thumb" style="left:calc(22% - 6px)"></div>
+            </div>
+            <div class="param-value">120 s</div>
+          </div>
+          <div style="font-size:10px;color:var(--aka-gray-400);">Range: 30 – 600 s · AIPerf manages warmup internally</div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Backend</div>
+          <div class="param-sublabel">Protocol used by AIPerf to send requests</div>
+          <div style="margin-top:4px;">
+            <select class="select-input">
+              <option selected>OpenAI-compatible (recommended)</option>
+              <option>Triton gRPC</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="param-section-title">Sequence Lengths</div>
+
+        <div class="param-group">
+          <div class="param-label">Input Sequence Length (ISL)</div>
+          <div class="param-sublabel">Mean prompt length in tokens</div>
+          <div class="param-control">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:13%"></div>
+              <div class="slider-thumb" style="left:calc(13% - 6px)"></div>
+            </div>
+            <div class="param-value">512</div>
+          </div>
+          <div style="font-size:10px;color:var(--aka-gray-400);">Range: 64 – 8192 tokens</div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Output Sequence Length (OSL)</div>
+          <div class="param-sublabel">Hard cap on generation length — enforced per request for reproducible results</div>
+          <div class="param-control">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:6%"></div>
+              <div class="slider-thumb" style="left:calc(6% - 6px)"></div>
+            </div>
+            <div class="param-value">256</div>
+          </div>
+          <div style="font-size:10px;color:var(--aka-gray-400);">Range: 64 – 4096 tokens</div>
+        </div>
+
+        <div class="param-section-title">Options</div>
+
+        <div class="param-group">
+          <div class="param-label">ISL Distribution</div>
+          <div class="param-sublabel">Spread of input lengths around the ISL mean</div>
+          <div style="margin-top:4px;">
+            <select class="select-input">
+              <option>Fixed (no variance)</option>
+              <option>Normal ±10%</option>
+              <option selected>Normal ±25%</option>
+              <option>Exponential (heavy tail)</option>
+              <option>Synthetic dataset (AIPerf default)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Streaming (SSE)</div>
+          <div class="param-sublabel">Stream tokens as they generate</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px;color:var(--aka-gray-600);">Enabled</span>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Shared System Prompt</div>
+          <div class="param-sublabel">Common prefix → enables prefix caching</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px;color:var(--aka-gray-600);">Enabled</span>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── TAB B: Engine Tuning — TensorRT-LLM ── -->
+      <div id="panel-tab-b-trt" class="param-grid">
+
+        <div class="param-section-title" style="grid-column:1/-1; display:flex; align-items:center; gap:8px;">
+          TensorRT-LLM Engine Parameters
+          <span style="font-size:10px; font-weight:400; color:var(--aka-gray-400);">Defaults are optimal — only change for specific customer scenarios</span>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Batch Scheduler</div>
+          <div class="param-sublabel">How new requests join running batches</div>
+          <div style="margin-top:4px;">
+            <select class="select-input">
+              <option selected>In-flight batching (recommended)</option>
+              <option>Static batching</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Max Batch Size</div>
+          <div class="param-sublabel">Max concurrent sequences per step</div>
+          <div class="param-control" style="margin-top:6px;">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:50%"></div>
+              <div class="slider-thumb" style="left:calc(50% - 6px)"></div>
+            </div>
+            <div class="param-value">64</div>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">KV Cache dtype</div>
+          <div class="param-sublabel">Memory format for attention key-value cache</div>
+          <div style="margin-top:4px;">
+            <select class="select-input">
+              <option selected>FP8 (recommended)</option>
+              <option>FP16</option>
+              <option>INT8</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">GPU Memory Utilisation</div>
+          <div class="param-sublabel">Fraction allocated to KV cache</div>
+          <div class="param-control" style="margin-top:6px;">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:90%"></div>
+              <div class="slider-thumb" style="left:calc(90% - 6px)"></div>
+            </div>
+            <div class="param-value">0.95</div>
+          </div>
+          <div style="font-size:10px;color:var(--aka-gray-400);">Range: 0.50 – 0.98</div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">GEMM Autotuning</div>
+          <div class="param-sublabel">Selects optimal matrix multiply kernel at compile time — baked into engine</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px; color:var(--aka-green); font-weight:600;">Always on (compile-time)</span>
+            <div class="toggle on" style="opacity:.5; pointer-events:none;"></div>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">CUDA Graphs</div>
+          <div class="param-sublabel">Eliminates CPU kernel launch overhead</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px;color:var(--aka-gray-600);">Enabled</span>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Speculative Decoding</div>
+          <div class="param-sublabel">Requires a compatible draft model on the PVC cache</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px; color:var(--aka-gray-400);">Disabled (no draft model)</span>
+            <div class="toggle" style="opacity:.5; pointer-events:none;"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── TAB B: Engine Tuning — vLLM ── -->
+      <div id="panel-tab-b-vllm" class="param-grid" style="display:none;">
+
+        <div class="param-section-title" style="grid-column:1/-1; display:flex; align-items:center; gap:8px;">
+          vLLM Engine Parameters
+          <span style="font-size:10px; font-weight:400; color:var(--aka-gray-400);">Defaults are optimal — only change for specific customer scenarios</span>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Scheduler Policy</div>
+          <div class="param-sublabel">How vLLM orders and batches requests</div>
+          <div style="margin-top:4px;">
+            <select class="select-input">
+              <option selected>Continuous batching (recommended)</option>
+              <option>Dynamic batching</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Max Batch Size</div>
+          <div class="param-sublabel">Max sequences per scheduler step</div>
+          <div class="param-control" style="margin-top:6px;">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:50%"></div>
+              <div class="slider-thumb" style="left:calc(50% - 6px)"></div>
+            </div>
+            <div class="param-value">64</div>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">KV Cache dtype</div>
+          <div class="param-sublabel">Memory format for attention key-value cache</div>
+          <div style="margin-top:4px;">
+            <select class="select-input">
+              <option selected>Auto (matches model dtype)</option>
+              <option>FP8</option>
+              <option>INT8</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">GPU Memory Utilisation</div>
+          <div class="param-sublabel">Fraction allocated to KV cache (vLLM needs more headroom)</div>
+          <div class="param-control" style="margin-top:6px;">
+            <div class="slider-track" style="flex:1;">
+              <div class="slider-fill" style="width:80%"></div>
+              <div class="slider-thumb" style="left:calc(80% - 6px)"></div>
+            </div>
+            <div class="param-value">0.90</div>
+          </div>
+          <div style="font-size:10px;color:var(--aka-gray-400);">Range: 0.50 – 0.98 · default 0.90 (vs 0.95 for TRT-LLM)</div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">PagedAttention</div>
+          <div class="param-sublabel">Core vLLM mechanism — eliminates KV cache fragmentation</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px; color:var(--aka-green); font-weight:600;">Always on (core feature)</span>
+            <div class="toggle on" style="opacity:.5; pointer-events:none;"></div>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Prefix Caching</div>
+          <div class="param-sublabel">Caches shared system prompt KV state — reduces TTFT significantly</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px;color:var(--aka-gray-600);">Enabled</span>
+            <div class="toggle on"></div>
+          </div>
+          <div style="font-size:10px;color:var(--aka-blue); margin-top:4px;">Auto-enabled when Shared System Prompt is on (Tab A)</div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Chunked Prefill</div>
+          <div class="param-sublabel">Splits long prefills to reduce TTFT variance at high concurrency</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px;color:var(--aka-gray-600);">Enabled</span>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="param-group">
+          <div class="param-label">Flash Attention 2</div>
+          <div class="param-sublabel">Memory-efficient attention kernel</div>
+          <div class="toggle-row" style="margin-top:8px;">
+            <span style="font-size:11px;color:var(--aka-gray-600);">Enabled</span>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+      </div>
+
+
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    function showTab(name) {
+      // Hide all tab panels
+      document.getElementById('panel-tab-a').style.display = 'none';
+      document.getElementById('panel-tab-b-trt').style.display = 'none';
+      document.getElementById('panel-tab-b-vllm').style.display = 'none';
+
+      // Deactivate all tabs
+      ['a','b'].forEach(t => document.getElementById('tab-' + t).classList.remove('active'));
+
+      // Show selected
+      document.getElementById('tab-' + name).classList.add('active');
+
+      if (name === 'a') {
+        document.getElementById('panel-tab-a').style.display = 'grid';
+      } else if (name === 'b') {
+        const engine = document.getElementById('tab-b-engine-badge').dataset.engine || 'trt';
+        document.getElementById('panel-tab-b-' + engine).style.display = 'grid';
+      }
+    }
+
+    // Called when engine selection changes (engine cards in Panel 1)
+    function setEngine(engine) {
+      const badge = document.getElementById('tab-b-engine-badge');
+      badge.dataset.engine = engine;
+      if (engine === 'trt') {
+        badge.textContent = 'TensorRT-LLM';
+        badge.style.background = 'rgba(0,155,222,.12)';
+        badge.style.color = 'var(--aka-blue)';
+      } else {
+        badge.textContent = 'vLLM';
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#166534';
+      }
+      // If tab B is currently active, swap the visible sub-panel
+      if (document.getElementById('tab-b').classList.contains('active')) {
+        document.getElementById('panel-tab-b-trt').style.display = 'none';
+        document.getElementById('panel-tab-b-vllm').style.display = 'none';
+        document.getElementById('panel-tab-b-' + engine).style.display = 'grid';
+      }
+    }
+
+    // Wire up engine cards in Panel 1
+    document.querySelectorAll('.engine-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.engine-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        const isTrt = card.querySelector('.engine-name').textContent.includes('TensorRT');
+        setEngine(isTrt ? 'trt' : 'vllm');
+        // Jump to Tab B so the engineer sees what changed
+        showTab('b');
+      });
+    });
+
+    // Default state: show Tab B / TRT
+    document.getElementById('tab-b-engine-badge').dataset.engine = 'trt';
+  </script>
+
+</div><!-- /main-grid -->
+</div><!-- /page-configure -->
+
+<!-- ══════════════════════════════════
+     PAGE: JOBS
+══════════════════════════════════ -->
+<div class="page" id="page-jobs">
+  <div class="jobs-page-wrap">
+    <div class="jobs-page-header">
+      <div class="jobs-page-title">Benchmark Jobs</div>
+      <button class="btn btn-primary btn-sm" onclick="showPage('configure')">+ New Benchmark</button>
+    </div>
+    <div class="jobs-table-wrap">
+      <table class="jobs-table">
+        <thead>
+          <tr>
+            <th>Job ID</th>
+            <th>Model</th>
+            <th>Engine · Quant</th>
+            <th>Hardware</th>
+            <th>Status</th>
+            <th>Submitted by</th>
+            <th>Started</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr onclick="showJobDetail(1)">
+            <td><span style="font-family:'SFMono-Regular',Consolas,monospace;font-size:11px;color:var(--aka-gray-500);">9f3a2d1b</span></td>
+            <td><div class="job-model">Llama-3.1-Nemotron-70B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">nvidia/Llama-3.1-Nemotron-70B-Instruct</div></td>
+            <td><span class="job-engine-badge trt">TensorRT-LLM</span> &nbsp;FP8</td>
+            <td>RTX Pro 6000</td>
+            <td><span class="job-status running"><span class="status-pulse"></span>Running</span></td>
+            <td>Jane Doe</td>
+            <td>2 min ago</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showJobDetail(2)">
+            <td><span style="font-family:'SFMono-Regular',Consolas,monospace;font-size:11px;color:var(--aka-gray-500);">4c8e1f7b</span></td>
+            <td><div class="job-model">Llama-3.1-8B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">meta-llama/Llama-3.1-8B-Instruct</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;FP8</td>
+            <td>RTX 4000 Ada</td>
+            <td><span class="job-status done">✓ Done</span></td>
+            <td>Jane Doe</td>
+            <td>18 min ago</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showJobDetail(3)">
+            <td><span style="font-family:'SFMono-Regular',Consolas,monospace;font-size:11px;color:var(--aka-gray-500);">7b2c9ad5</span></td>
+            <td><div class="job-model">Mistral-7B-Instruct-v0.3</div><div style="font-size:11px;color:var(--aka-gray-400);">mistralai/Mistral-7B-Instruct-v0.3</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;FP16</td>
+            <td>RTX 4000 Ada</td>
+            <td><span class="job-status failed">✕ Failed</span></td>
+            <td>John Smith</td>
+            <td>1 hr ago</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showJobDetail(4)">
+            <td><span style="font-family:'SFMono-Regular',Consolas,monospace;font-size:11px;color:var(--aka-gray-500);">1d5e8fb3</span></td>
+            <td><div class="job-model">TinyLlama-1.1B-Chat-v1.0</div><div style="font-size:11px;color:var(--aka-gray-400);">TinyLlama/TinyLlama-1.1B-Chat-v1.0</div></td>
+            <td><span class="job-engine-badge trt">TensorRT-LLM</span> &nbsp;FP16</td>
+            <td>RTX 4000 Ada</td>
+            <td><span class="job-status done">✓ Done</span></td>
+            <td>John Smith</td>
+            <td>3 hr ago</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:10px 0; font-size:11px; color:var(--aka-gray-400);">4 jobs · 1 running · 2 completed · 1 failed</div>
+  </div>
+</div><!-- /page-jobs -->
+
+<!-- ══════════════════════════════════
+     PAGE: JOB DETAIL
+══════════════════════════════════ -->
+<div class="page" id="page-job-detail">
+  <div class="job-detail-wrap">
+
+    <!-- Header -->
+    <button class="btn-back" onclick="showPage('jobs')">← Back to Jobs</button>
+    <div class="job-detail-title-row">
+      <div>
+        <div class="job-detail-title" id="jd-model-name">—</div>
+        <div class="job-detail-subtitle" id="jd-model-sub">—</div>
+      </div>
+    </div>
+
+    <!-- Two-column layout -->
+    <div class="job-detail-grid">
+
+      <!-- ── SIDEBAR: Job metadata ── -->
+      <div>
+        <div class="jd-card">
+          <div class="jd-card-title">Job Info</div>
+          <table class="jd-config-table" id="jd-meta-table"></table>
+        </div>
+        <div class="jd-card" id="jd-artifacts-card">
+          <div class="jd-card-title">Artifacts</div>
+          <div id="jd-artifacts-body"></div>
+        </div>
+        <button class="btn-view-report" id="jd-report-card" style="display:none;" onclick="showPage('report')">View Report</button>
+      </div>
+
+      <!-- ── MAIN: Configuration sections ── -->
+      <div class="jd-sections" id="jd-sections"></div>
+
+    </div><!-- /grid -->
+  </div><!-- /wrap -->
+</div><!-- /page-job-detail -->
+
+<script>
+// ── Job detail data ───────────────────────────────────────────────────────
+// Each job has sections mirroring the 3-step configure flow.
+// params: { key, val, wide? }  — wide=true spans both columns
+// muted=true → rendered in grey italic (default/always-on values)
+
+const JOB_DATA = {
+  1: {
+    id: '9f3a2d1b-4e7c-4a2f-b831-c9d5e8f1d2e3',
+    name: 'Llama-3.1-Nemotron-70B-Instruct',
+    fullName: 'nvidia/Llama-3.1-Nemotron-70B-Instruct',
+    engine: 'TensorRT-LLM', quant: 'FP8',
+    hw: 'RTX Pro 6000', status: 'running',
+    submittedBy: 'Jane Doe', started: '2 min ago', duration: null,
+    error: null,
+    sections: [
+      { title: 'Model & Engine', params: [
+        { key: 'Model',        val: 'nvidia/Llama-3.1-Nemotron-70B-Instruct', wide: true },
+        { key: 'Engine',       val: 'TensorRT-LLM' },
+        { key: 'Quantisation', val: 'FP8' },
+      ]},
+      { title: 'Hardware', params: [
+        { key: 'GPU',          val: 'RTX Pro 6000 · 96 GB VRAM', wide: true },
+      ]},
+      { title: 'Load Profile', params: [
+        { key: 'Virtual Users',       val: '16' },
+        { key: 'Target RPS',          val: '10 req/s' },
+        { key: 'Measurement Window',  val: '120 s' },
+        { key: 'Backend',             val: 'OpenAI-compatible', wide: true },
+        { key: 'Input Seq. Length',   val: '512 tokens' },
+        { key: 'Output Seq. Length',  val: '256 tokens' },
+        { key: 'ISL Distribution',    val: 'Normal ±25%', wide: true },
+        { key: 'Streaming (SSE)',      val: 'Enabled' },
+        { key: 'Shared System Prompt', val: 'Enabled' },
+      ]},
+      { title: 'Engine Tuning — TensorRT-LLM', params: [
+        { key: 'Batch Scheduler',    val: 'In-flight batching', wide: true },
+        { key: 'Max Batch Size',     val: '64' },
+        { key: 'KV Cache dtype',     val: 'FP8' },
+        { key: 'GPU Mem Utilisation', val: '0.95' },
+        { key: 'GEMM Autotuning',    val: 'Always on (compile-time)', muted: true, wide: true },
+        { key: 'CUDA Graphs',        val: 'Enabled' },
+        { key: 'Speculative Decoding', val: 'Disabled — no draft model cached', muted: true, wide: true },
+      ]},
+    ],
+  },
+  2: {
+    id: '4c8e1f7b-9a3d-4b6e-8c2f-a1d5e9f3b7c4',
+    name: 'Llama-3.1-8B-Instruct',
+    fullName: 'meta-llama/Llama-3.1-8B-Instruct',
+    engine: 'vLLM', quant: 'FP8',
+    hw: 'RTX 4000 Ada', status: 'done',
+    submittedBy: 'Jane Doe', started: '18 min ago', duration: '3 m 42 s',
+    error: null,
+    sections: [
+      { title: 'Model & Engine', params: [
+        { key: 'Model',        val: 'meta-llama/Llama-3.1-8B-Instruct', wide: true },
+        { key: 'Engine',       val: 'vLLM' },
+        { key: 'Quantisation', val: 'FP8' },
+      ]},
+      { title: 'Hardware', params: [
+        { key: 'GPU',          val: 'RTX 4000 Ada · 20 GB VRAM', wide: true },
+      ]},
+      { title: 'Load Profile', params: [
+        { key: 'Virtual Users',       val: '16' },
+        { key: 'Target RPS',          val: '10 req/s' },
+        { key: 'Measurement Window',  val: '120 s' },
+        { key: 'Backend',             val: 'OpenAI-compatible', wide: true },
+        { key: 'Input Seq. Length',   val: '512 tokens' },
+        { key: 'Output Seq. Length',  val: '256 tokens' },
+        { key: 'ISL Distribution',    val: 'Normal ±25%', wide: true },
+        { key: 'Streaming (SSE)',      val: 'Enabled' },
+        { key: 'Shared System Prompt', val: 'Enabled' },
+      ]},
+      { title: 'Engine Tuning — vLLM', params: [
+        { key: 'Scheduler Policy',    val: 'Continuous batching', wide: true },
+        { key: 'Max Batch Size',      val: '64' },
+        { key: 'KV Cache dtype',      val: 'Auto (matches model dtype)' },
+        { key: 'GPU Mem Utilisation', val: '0.90' },
+        { key: 'PagedAttention',      val: 'Always on (core feature)', muted: true, wide: true },
+        { key: 'Prefix Caching',      val: 'Enabled — auto-on (shared system prompt set)' , wide: true },
+        { key: 'Chunked Prefill',     val: 'Enabled' },
+        { key: 'Flash Attention 2',   val: 'Enabled' },
+      ]},
+    ],
+    logs: {
+      engine: `INFO 04-12 09:22:01 vllm_engine.py:88] Initializing an LLM engine (v0.6.3) with config: model='meta-llama/Llama-3.1-8B-Instruct', dtype=torch.float8_e4m3fn, max_seq_len=8192, tensor_parallel_size=1, quantization=fp8
+INFO 04-12 09:22:01 selector.py:177] Using Flash Attention backend.
+INFO 04-12 09:22:02 weight_utils.py:242] Using model weights format ['*.safetensors']
+INFO 04-12 09:22:07 model_runner.py:160] Loading model weights took 8.21 GiB
+INFO 04-12 09:22:08 gpu_executor.py:83] # GPU blocks: 1842, # CPU blocks: 2048
+INFO 04-12 09:22:08 gpu_executor.py:87] Maximum concurrency for 8192 tokens per request: 28.65x
+INFO 04-12 09:22:09 model_runner.py:997] Capturing the model for CUDA graphs.
+INFO 04-12 09:22:11 model_runner.py:1102] Graph capturing finished in 2 secs, took 0.84 GiB
+INFO 04-12 09:22:12 serving_engine.py:231] Async engine initialized.
+INFO 04-12 09:22:12 api_server.py:466] Starting vLLM API server on http://0.0.0.0:8000
+INFO 04-12 09:22:13 metrics.py:351] Avg prompt throughput: 0.0 tok/s, Avg generation throughput: 0.0 tok/s, Running: 0, Pending: 0, GPU KV cache: 0.0%
+INFO 04-12 09:22:25 metrics.py:351] Avg prompt throughput: 512.3 tok/s, Avg generation throughput: 89.4 tok/s, Running: 16, GPU KV cache: 12.4%
+INFO 04-12 09:22:35 metrics.py:351] Avg prompt throughput: 498.7 tok/s, Avg generation throughput: 94.2 tok/s, Running: 16, GPU KV cache: 18.7%
+INFO 04-12 09:22:45 metrics.py:351] Avg prompt throughput: 511.1 tok/s, Avg generation throughput: 91.8 tok/s, Running: 16, GPU KV cache: 22.1%
+INFO 04-12 09:22:55 metrics.py:351] Avg prompt throughput: 504.9 tok/s, Avg generation throughput: 93.5 tok/s, Running: 16, GPU KV cache: 23.8%
+INFO 04-12 09:23:05 metrics.py:351] Avg prompt throughput: 509.2 tok/s, Avg generation throughput: 92.7 tok/s, Running: 16, GPU KV cache: 24.2%
+INFO 04-12 09:25:43 api_server.py:112] Received SIGTERM signal. Shutting down gracefully.
+INFO 04-12 09:25:43 async_llm_engine.py:501] Engine shutdown complete.`,
+      aiperf: `[aiperf 0.7.0] Waiting for engine health at http://localhost:8000/health ...
+[aiperf 0.7.0] Engine healthy after 11.4 s
+[aiperf 0.7.0] Starting benchmark: virtual_users=16, target_rps=10, duration=120s, isl=512, osl=256
+[aiperf 0.7.0] Warm-up phase (30 s) ...
+[aiperf 0.7.0] Measurement window started
+[aiperf 0.7.0] Progress  10 s: throughput=91.2 tok/s, ttft_p50=24 ms
+[aiperf 0.7.0] Progress  20 s: throughput=93.1 tok/s, ttft_p50=22 ms
+[aiperf 0.7.0] Progress  30 s: throughput=92.4 tok/s, ttft_p50=23 ms
+[aiperf 0.7.0] Progress  40 s: throughput=94.8 tok/s, ttft_p50=21 ms
+[aiperf 0.7.0] Progress  50 s: throughput=93.6 tok/s, ttft_p50=22 ms
+[aiperf 0.7.0] Progress  60 s: throughput=92.9 tok/s, ttft_p50=23 ms
+[aiperf 0.7.0] Progress  70 s: throughput=94.1 tok/s, ttft_p50=21 ms
+[aiperf 0.7.0] Progress  80 s: throughput=93.2 tok/s, ttft_p50=22 ms
+[aiperf 0.7.0] Progress  90 s: throughput=92.8 tok/s, ttft_p50=24 ms
+[aiperf 0.7.0] Progress 100 s: throughput=93.9 tok/s, ttft_p50=22 ms
+[aiperf 0.7.0] Progress 110 s: throughput=94.3 tok/s, ttft_p50=21 ms
+[aiperf 0.7.0] Measurement window complete (120 s)
+[aiperf 0.7.0] ── Results ──────────────────────────────────────
+[aiperf 0.7.0]   Throughput:            93.4 tok/s
+[aiperf 0.7.0]   TTFT  p50/p95/p99:    22 / 38 / 61 ms
+[aiperf 0.7.0]   TPOT  p50/p95:        11 / 19 ms/tok
+[aiperf 0.7.0]   E2E latency p50/p99:  684 / 1241 ms
+[aiperf 0.7.0]   GPU utilisation:      78.3%
+[aiperf 0.7.0]   VRAM peak:            9.8 GB
+[aiperf 0.7.0] Writing results to /results/aiperf.json
+[aiperf 0.7.0] Done.`,
+      collector: `[collector] Waiting for aiperf results at /results/aiperf.json ...
+[collector] Results file found.
+[collector] Reading DCGM metrics from /results/dcgm_metrics.json
+[collector] Posting results to http://job-controller.default.svc/jobs/4c8e1f7b-9a3d-4b6e-8c2f-a1d5e9f3b7c4/results
+[collector] HTTP 200 OK — results accepted
+[collector] Shutting down.`,
+    },
+  },
+  3: {
+    id: '7b2c9ad5-3f1e-4c8a-b2d6-e5f9a1c3d7b2',
+    name: 'Mistral-7B-Instruct-v0.3',
+    fullName: 'mistralai/Mistral-7B-Instruct-v0.3',
+    engine: 'vLLM', quant: 'FP16',
+    hw: 'RTX 4000 Ada', status: 'failed',
+    submittedBy: 'John Smith', started: '1 hr ago', duration: '0 m 51 s',
+    error: {
+      code: 'CUDA_OOM — model load failed',
+      message: 'FP16 weights require approximately 14.2 GB. While the RTX 4000 Ada has 20 GB VRAM, only 17.8 GB is available after OS and driver reservation — insufficient for weights plus KV cache allocation.',
+      suggestion: 'Switch to <strong>FP8 quantisation</strong> (reduces weight memory to ~7.1 GB), or select <strong>RTX Pro 6000</strong> to run FP16 on this model.',
+    },
+    logs: { engine: `INFO 04-12 09:14:01 vllm_engine.py:88] Initializing an LLM engine (v0.6.3) with config: model='mistralai/Mistral-7B-Instruct-v0.3', tokenizer='mistralai/Mistral-7B-Instruct-v0.3', tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.float16, max_seq_len=2048, download_dir=None, load_format=LoadFormat.AUTO, tensor_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=False, kv_cache_dtype=auto, quantization_param_path=None, device_config=cuda, decoding_config=DecodingConfig(guided_decoding_backend='outlines'), seed=0, served_model_name=mistralai/Mistral-7B-Instruct-v0.3
+INFO 04-12 09:14:01 selector.py:177] Using Flash Attention backend.
+INFO 04-12 09:14:02 weight_utils.py:242] Using model weights format ['*.safetensors']
+INFO 04-12 09:14:02 weight_utils.py:287] No model.safetensors.index.json found in remote.
+INFO 04-12 09:14:09 model_runner.py:160] Loading model weights took 13.847 GiB
+INFO 04-12 09:14:10 gpu_executor.py:83] # GPU blocks: 412, # CPU blocks: 1024
+INFO 04-12 09:14:10 gpu_executor.py:87] Maximum concurrency for 2048 tokens per request: 3.22x
+INFO 04-12 09:14:11 model_runner.py:997] Capturing the model for CUDA graphs. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
+INFO 04-12 09:14:11 model_runner.py:1001] CUDA graphs can take additional 1~3 GiB memory. If you are running out of memory, consider decreasing \`gpu_memory_utilization\` or enforcing eager mode. You can also reduce the \`max_num_seqs\` as needed to decrease memory usage.
+WARNING 04-12 09:14:12 model_runner.py:1056] Computed output_size would exceed max_seq_len=2048
+INFO 04-12 09:14:13 model_runner.py:1102] Graph capturing finished in 2 secs, took 1.52 GiB
+INFO 04-12 09:14:14 serving_engine.py:231] Async engine initialized.
+INFO 04-12 09:14:14 api_server.py:466] Starting vLLM API server on http://0.0.0.0:8000
+INFO 04-12 09:14:14 launcher.py:113] Available routes are:
+INFO 04-12 09:14:14 launcher.py:121] Route: /openapi.json, Methods: GET, HEAD
+INFO 04-12 09:14:14 launcher.py:121] Route: /docs, Methods: GET, HEAD
+INFO 04-12 09:14:14 launcher.py:121] Route: /metrics, Methods: GET, HEAD
+INFO 04-12 09:14:14 launcher.py:121] Route: /health, Methods: GET
+INFO 04-12 09:14:14 launcher.py:121] Route: /v1/completions, Methods: POST
+INFO 04-12 09:14:14 launcher.py:121] Route: /v1/chat/completions, Methods: POST
+INFO 04-12 09:14:30 async_llm_engine.py:592] Added request cmpl-a1b2c3-0.
+INFO 04-12 09:14:30 metrics.py:351] Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 1, Swapped: 0, Pending: 0, GPU KV cache usage: 0.3%, CPU KV cache usage: 0.0%
+WARNING 04-12 09:14:31 async_llm_engine.py:621] Engine iteration took too long (8.43 s). This might cause timeouts in multi-replica setups.
+INFO 04-12 09:14:38 metrics.py:351] Avg prompt throughput: 58.2 tokens/s, Avg generation throughput: 4.1 tokens/s, Running: 1, Swapped: 0, Pending: 0, GPU KV cache usage: 0.8%, CPU KV cache usage: 0.0%
+WARNING 04-12 09:14:41 cache_engine.py:194] Allocating KV cache. This may take a while...
+WARNING 04-12 09:14:42 cache_engine.py:198] KV cache size: 1.31 GiB — only 1.4 GiB free after weights. Allocation continuing.
+INFO 04-12 09:14:43 metrics.py:351] Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 18.4 tokens/s, Running: 16, Swapped: 0, Pending: 48, GPU KV cache usage: 62.1%, CPU KV cache usage: 0.0%
+WARNING 04-12 09:14:44 scheduler.py:889] sequence group cmpl-a1b2c3-16 is preempted by PreemptionMode.RECOMPUTE mode because there is not enough KV cache space.
+WARNING 04-12 09:14:44 scheduler.py:889] sequence group cmpl-a1b2c3-17 is preempted by PreemptionMode.RECOMPUTE mode because there is not enough KV cache space.
+INFO 04-12 09:14:44 metrics.py:351] Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 9.7 tokens/s, Running: 14, Swapped: 0, Pending: 50, GPU KV cache usage: 91.4%, CPU KV cache usage: 0.0%
+ERROR 04-12 09:14:45 async_llm_engine.py:475] Engine background task failed
+ERROR 04-12 09:14:45 async_llm_engine.py:476] Traceback (most recent call last):
+ERROR 04-12 09:14:45 async_llm_engine.py:477]   File "/usr/local/lib/python3.10/dist-packages/vllm/engine/async_llm_engine.py", line 431, in run_engine_loop
+ERROR 04-12 09:14:45 async_llm_engine.py:478]     await self.engine_step(virtual_engine)
+ERROR 04-12 09:14:45 async_llm_engine.py:479]   File "/usr/local/lib/python3.10/dist-packages/vllm/engine/async_llm_engine.py", line 387, in engine_step
+ERROR 04-12 09:14:45 async_llm_engine.py:480]     output = await self.model_executor.execute_model_async(execute_model_req)
+ERROR 04-12 09:14:45 async_llm_engine.py:481]   File "/usr/local/lib/python3.10/dist-packages/vllm/executor/gpu_executor.py", line 116, in execute_model_async
+ERROR 04-12 09:14:45 async_llm_engine.py:482]     output = await make_async(self.driver_worker.execute_model)(execute_model_req=execute_model_req)
+ERROR 04-12 09:14:45 async_llm_engine.py:483]   File "/usr/local/lib/python3.10/dist-packages/vllm/worker/worker.py", line 287, in execute_model
+ERROR 04-12 09:14:45 async_llm_engine.py:484]   File "/usr/local/lib/python3.10/dist-packages/vllm/worker/worker.py", line 389, in _execute_model_spmd
+ERROR 04-12 09:14:45 async_llm_engine.py:485]   File "/usr/local/lib/python3.10/dist-packages/vllm/worker/model_runner.py", line 1285, in execute_model
+ERROR 04-12 09:14:45 async_llm_engine.py:486] torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 19.99 GiB of which 118.50 MiB is free. Of the allocated memory 17.34 GiB is used by PyTorch. 1.55 GiB is reserved by PyTorch but unallocated.
+ERROR 04-12 09:14:45 async_llm_engine.py:487] CUDA error: device-side assert triggered`,
+      aiperf: `[aiperf 0.7.0] Waiting for engine health at http://localhost:8000/health ...
+[aiperf 0.7.0] Engine healthy after 13.2 s
+[aiperf 0.7.0] Starting benchmark: virtual_users=32, target_rps=20, duration=120s, isl=1024, osl=512
+[aiperf 0.7.0] Warm-up phase (30 s) ...
+[aiperf 0.7.0] ERROR Engine connection lost during warm-up (socket closed by remote)
+[aiperf 0.7.0] Retrying connection in 2 s ...
+[aiperf 0.7.0] ERROR Engine unreachable after 3 attempts — aborting benchmark
+[aiperf 0.7.0] No results written.`,
+      collector: `[collector] Waiting for aiperf results at /results/aiperf.json ...
+[collector] ERROR aiperf.json not found after 60 s timeout
+[collector] Reporting job failure to http://job-controller.default.svc/jobs/7b2c9ad5-3f1e-4c8a-b2d6-e5f9a1c3d7b2/results
+[collector] HTTP 200 OK — failure reported
+[collector] Shutting down.`,
+    },
+    sections: [
+      { title: 'Model & Engine', params: [
+        { key: 'Model',        val: 'mistralai/Mistral-7B-Instruct-v0.3', wide: true },
+        { key: 'Engine',       val: 'vLLM' },
+        { key: 'Quantisation', val: 'FP16' },
+      ]},
+      { title: 'Hardware', params: [
+        { key: 'GPU',          val: 'RTX 4000 Ada · 20 GB VRAM', wide: true },
+      ]},
+      { title: 'Load Profile', params: [
+        { key: 'Virtual Users',       val: '32' },
+        { key: 'Target RPS',          val: '20 req/s' },
+        { key: 'Measurement Window',  val: '120 s' },
+        { key: 'Backend',             val: 'OpenAI-compatible', wide: true },
+        { key: 'Input Seq. Length',   val: '1024 tokens' },
+        { key: 'Output Seq. Length',  val: '512 tokens' },
+        { key: 'ISL Distribution',    val: 'Normal ±25%', wide: true },
+        { key: 'Streaming (SSE)',      val: 'Enabled' },
+        { key: 'Shared System Prompt', val: 'Enabled' },
+      ]},
+      { title: 'Engine Tuning — vLLM', params: [
+        { key: 'Scheduler Policy',    val: 'Continuous batching', wide: true },
+        { key: 'Max Batch Size',      val: '64' },
+        { key: 'KV Cache dtype',      val: 'Auto (matches model dtype)' },
+        { key: 'GPU Mem Utilisation', val: '0.90' },
+        { key: 'PagedAttention',      val: 'Always on (core feature)', muted: true, wide: true },
+        { key: 'Prefix Caching',      val: 'Enabled' },
+        { key: 'Chunked Prefill',     val: 'Enabled' },
+        { key: 'Flash Attention 2',   val: 'Enabled' },
+      ]},
+    ],
+  },
+  4: {
+    id: '1d5e8fb3-7c2a-4d9e-a3f1-b6c8d2e4f7a1',
+    name: 'TinyLlama-1.1B-Chat-v1.0',
+    fullName: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+    engine: 'TensorRT-LLM', quant: 'FP16',
+    hw: 'RTX 4000 Ada', status: 'done',
+    submittedBy: 'John Smith', started: '3 hr ago', duration: '4 m 12 s',
+    error: null,
+    sections: [
+      { title: 'Model & Engine', params: [
+        { key: 'Model',        val: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0', wide: true },
+        { key: 'Engine',       val: 'TensorRT-LLM' },
+        { key: 'Quantisation', val: 'FP16' },
+      ]},
+      { title: 'Hardware', params: [
+        { key: 'GPU',          val: 'RTX 4000 Ada · 20 GB VRAM', wide: true },
+      ]},
+      { title: 'Load Profile', params: [
+        { key: 'Virtual Users',       val: '64' },
+        { key: 'Target RPS',          val: '50 req/s' },
+        { key: 'Measurement Window',  val: '120 s' },
+        { key: 'Backend',             val: 'OpenAI-compatible', wide: true },
+        { key: 'Input Seq. Length',   val: '256 tokens' },
+        { key: 'Output Seq. Length',  val: '128 tokens' },
+        { key: 'ISL Distribution',    val: 'Normal ±25%', wide: true },
+        { key: 'Streaming (SSE)',      val: 'Enabled' },
+        { key: 'Shared System Prompt', val: 'Enabled' },
+      ]},
+      { title: 'Engine Tuning — TensorRT-LLM', params: [
+        { key: 'Batch Scheduler',     val: 'In-flight batching', wide: true },
+        { key: 'Max Batch Size',      val: '128' },
+        { key: 'KV Cache dtype',      val: 'FP16' },
+        { key: 'GPU Mem Utilisation', val: '0.95' },
+        { key: 'GEMM Autotuning',     val: 'Always on (compile-time)', muted: true, wide: true },
+        { key: 'CUDA Graphs',         val: 'Enabled' },
+        { key: 'Speculative Decoding', val: 'Disabled — no draft model cached', muted: true, wide: true },
+      ]},
+    ],
+    logs: {
+      engine: `[trtllm-serve] Checking engine cache at /models/engines/tinyllama-1.1b-chat-v1.0/fp16/rtx4000ada/ ...
+[trtllm-serve] Cache HIT — skipping trtllm-build
+[trtllm-serve] Loading compiled engine (1.8 GiB) ...
+[trtllm-serve] Engine loaded in 3.2 s
+[trtllm-serve] In-flight batching enabled, max_batch_size=128
+[trtllm-serve] KV cache dtype: FP16, GPU mem utilisation: 0.95
+[trtllm-serve] CUDA graphs enabled
+[trtllm-serve] Starting TRT-LLM API server on http://0.0.0.0:8000
+INFO Health endpoint ready
+INFO Received first request: POST /v1/completions (seq_len=256 → 128 output tokens, TTFT=14.2 ms)
+INFO Batch fill rate stabilised at 94.3% across 64 virtual users
+INFO Received SIGTERM signal. Beginning graceful shutdown.
+INFO All active requests drained (12 in-flight completed). Shutting down.`,
+      aiperf: `[aiperf 0.7.0] Waiting for engine health at http://localhost:8000/health ...
+[aiperf 0.7.0] Engine healthy after 4.1 s
+[aiperf 0.7.0] Starting benchmark: virtual_users=64, target_rps=50, duration=120s, isl=256, osl=128
+[aiperf 0.7.0] Warm-up phase (30 s) ...
+[aiperf 0.7.0] Measurement window started
+[aiperf 0.7.0] Progress  10 s: throughput=1842 tok/s, ttft_p50=18 ms
+[aiperf 0.7.0] Progress  20 s: throughput=1891 tok/s, ttft_p50=17 ms
+[aiperf 0.7.0] Progress  30 s: throughput=1874 tok/s, ttft_p50=18 ms
+[aiperf 0.7.0] Progress  40 s: throughput=1862 tok/s, ttft_p50=18 ms
+[aiperf 0.7.0] Progress  50 s: throughput=1889 tok/s, ttft_p50=17 ms
+[aiperf 0.7.0] Progress  60 s: throughput=1877 tok/s, ttft_p50=17 ms
+[aiperf 0.7.0] Progress  70 s: throughput=1883 tok/s, ttft_p50=18 ms
+[aiperf 0.7.0] Progress  80 s: throughput=1868 tok/s, ttft_p50=18 ms
+[aiperf 0.7.0] Progress  90 s: throughput=1895 tok/s, ttft_p50=17 ms
+[aiperf 0.7.0] Progress 100 s: throughput=1871 tok/s, ttft_p50=18 ms
+[aiperf 0.7.0] Progress 110 s: throughput=1886 tok/s, ttft_p50=17 ms
+[aiperf 0.7.0] Measurement window complete (120 s)
+[aiperf 0.7.0] ── Results ──────────────────────────────────────
+[aiperf 0.7.0]   Throughput:            1874 tok/s
+[aiperf 0.7.0]   TTFT  p50/p95/p99:    17 / 29 / 44 ms
+[aiperf 0.7.0]   TPOT  p50/p95:        5 / 9 ms/tok
+[aiperf 0.7.0]   E2E latency p50/p99:  226 / 412 ms
+[aiperf 0.7.0]   GPU utilisation:      91.7%
+[aiperf 0.7.0]   VRAM peak:            3.2 GB
+[aiperf 0.7.0] Writing results to /results/aiperf.json
+[aiperf 0.7.0] Done.`,
+      collector: `[collector] Waiting for aiperf results at /results/aiperf.json ...
+[collector] Results file found.
+[collector] Reading DCGM metrics from /results/dcgm_metrics.json
+[collector] Posting results to http://job-controller.default.svc/jobs/1d5e8fb3-7c2a-4d9e-a3f1-b6c8d2e4f7a1/results
+[collector] HTTP 200 OK — results accepted
+[collector] Shutting down.`,
+    },
+  },
+};
+
+// ── Renderer ──────────────────────────────────────────────────────────────
+function renderSection(section) {
+  const params = section.params.map(p => {
+    const cls = 'jd-param' + (p.wide ? ' wide' : '');
+    const valCls = 'jd-param-val' + (p.muted ? ' muted' : '');
+    return `<div class="${cls}">
+      <div class="jd-param-key">${p.key}</div>
+      <div class="${valCls}">${p.val}</div>
+    </div>`;
+  }).join('');
+  return `<div class="jd-card">
+    <div class="jd-card-title">${section.title}</div>
+    <div class="jd-param-grid">${params}</div>
+  </div>`;
+}
+
+// ── Main entry point ──────────────────────────────────────────────────────
+function showJobDetail(id) {
+  const job = JOB_DATA[id];
+
+  // Header
+  document.getElementById('jd-model-name').textContent = job.name;
+  document.getElementById('jd-model-sub').textContent =
+    job.fullName + ' · ' + job.engine + ' · ' + job.quant + ' · ' + job.hw;
+
+  // Status badge HTML (rendered into the sidebar, not the header)
+  let statusInner, statusClass;
+  if      (job.status === 'running') { statusClass = 'running'; statusInner = '<span class="status-pulse"></span>Running'; }
+  else if (job.status === 'done')    { statusClass = 'done';    statusInner = '✓ Done'; }
+  else                               { statusClass = 'failed';  statusInner = '✕ Failed'; }
+  const statusBadge = `<span class="job-status ${statusClass}">${statusInner}</span>`;
+
+  // Sidebar: job meta
+  let meta = `<tr><td>Status</td><td>${statusBadge}</td></tr>
+    <tr><td>Job ID</td><td><span style="font-family:'SFMono-Regular',Consolas,monospace;font-size:11px;word-break:break-all;">${job.id}</span></td></tr>
+    <tr><td>Submitted by</td><td>${job.submittedBy}</td></tr>
+    <tr><td>Started</td><td>${job.started}</td></tr>`;
+  if (job.duration) meta += `<tr><td>Duration</td><td>${job.duration}</td></tr>`;
+  document.getElementById('jd-meta-table').innerHTML = meta;
+
+  // Main: error notice (failed only) + config sections
+  let html = '';
+  // Artifacts card
+  const isDone = job.status === 'done';
+  document.getElementById('jd-report-card').style.display = isDone ? '' : 'none';
+  document.getElementById('jd-artifacts-body').innerHTML = `
+    <button class="btn-export${isDone ? '' : ' disabled'}" style="margin-top:0;">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M8 1v9M4 7l4 4 4-4M2 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      aiperf.json
+      ${isDone ? '<span class="btn-export-meta">~12 KB</span>' : ''}
+    </button>
+    <button class="btn-export${isDone ? '' : ' disabled'}">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M8 1v9M4 7l4 4 4-4M2 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      dcgm_metrics.json
+      ${isDone ? '<span class="btn-export-meta">~38 KB</span>' : ''}
+    </button>
+    ${!isDone ? `<p style="font-size:10px;color:var(--aka-gray-400);margin-top:8px;">Available once the run completes.</p>` : ''}
+  `;
+
+  if (job.error) {
+    const e = job.error;
+    html += `<div class="jd-card" style="border-color:#fca5a5; background:#fff5f5;">
+      <div class="jd-card-title" style="color:#991b1b; border-color:#fecaca;">✕ ${e.code}</div>
+      <p style="font-size:12px; color:#7f1d1d; line-height:1.6; margin-bottom:10px;">${e.message}</p>
+      <div style="background:#fee2e2; border:1px solid #fca5a5; border-radius:5px; padding:8px 12px; font-size:11px; color:#92400e;">
+        <strong>Suggestion:</strong> ${e.suggestion}
+      </div>
+    </div>`;
+  }
+
+  // Failed jobs open on Logs tab (logs are primary); others open on Specifications
+  const isFailed    = job.status === 'failed';
+  const hasLogs     = !!job.logs;
+  const logsDisabled = !hasLogs;
+  const defaultMainTab = isFailed ? 'logs' : 'specs';
+
+  // Build Specifications panel
+  const specsHtml = job.sections.map(renderSection).join('');
+
+  // Build Logs panel
+  let logsHtml = '';
+  if (!hasLogs) {
+    logsHtml = `<div class="jd-card" style="color:var(--aka-gray-400); font-size:12px; text-align:center; padding:32px 16px;">
+      Logs will be available once the run completes.
+    </div>`;
+  } else {
+    // Error summary card — only on failed jobs, pinned above the log viewer
+    if (job.error) {
+      const e = job.error;
+      logsHtml += `<div class="jd-card" style="border-color:#fca5a5; background:#fff5f5;">
+        <div class="jd-card-title" style="color:#991b1b; border-color:#fecaca;">✕ ${e.code}</div>
+        <p style="font-size:12px; color:#7f1d1d; line-height:1.6; margin-bottom:10px;">${e.message}</p>
+        <div style="background:#fee2e2; border:1px solid #fca5a5; border-radius:5px; padding:8px 12px; font-size:11px; color:#92400e;">
+          <strong>Suggestion:</strong> ${e.suggestion}
+        </div>
+      </div>`;
+    }
+    const engineLines = (job.logs['engine'] || '').split('\n').length;
+    logsHtml += `<div class="jd-logs-card">
+      <div class="jd-logs-header">
+        <div class="jd-logs-title">
+          Container Logs
+          <span class="jd-logs-line-count" id="jd-logs-line-count">${engineLines} lines</span>
+        </div>
+        <button class="jd-logs-copy" id="jd-copy-btn" onclick="copyLogs(${id})">Copy</button>
+      </div>
+      <div class="jd-logs-tabs">
+        <button class="jd-logs-tab active" onclick="switchLogsTab(${id},'engine',this)">engine</button>
+        <button class="jd-logs-tab" onclick="switchLogsTab(${id},'aiperf',this)">aiperf</button>
+        <button class="jd-logs-tab" onclick="switchLogsTab(${id},'collector',this)">collector</button>
+      </div>
+      <pre class="jd-logs-pre" id="jd-logs-pre">${colorizeLogs(job.logs['engine'])}</pre>
+    </div>`;
+  }
+
+  html = `
+    <div class="jd-main-tab-bar">
+      <div class="jd-main-tab${defaultMainTab === 'specs' ? ' active' : ''}" id="jd-mtab-specs" onclick="switchJdTab('specs')">Specifications</div>
+      <div class="jd-main-tab${defaultMainTab === 'logs' ? ' active' : ''}${logsDisabled ? ' disabled' : ''}" id="jd-mtab-logs" onclick="switchJdTab('logs')">Logs</div>
+    </div>
+    <div class="jd-tab-panel${defaultMainTab !== 'specs' ? ' hidden' : ''}" id="jd-panel-specs">${specsHtml}</div>
+    <div class="jd-tab-panel${defaultMainTab !== 'logs' ? ' hidden' : ''}" id="jd-panel-logs">${logsHtml}</div>
+  `;
+
+  document.getElementById('jd-sections').innerHTML = html;
+
+  // For failed jobs, scroll log pre to bottom so the error lines are immediately visible
+  if (isFailed && hasLogs) {
+    const pre = document.getElementById('jd-logs-pre');
+    if (pre) pre.scrollTop = pre.scrollHeight;
+  }
+
+  showPage('job-detail');
+}
+
+function colorizeLogs(raw) {
+  return (raw || '(no logs)')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .split('\n')
+    .map(line => {
+      if (line.startsWith('ERROR')   || line.includes('[aiperf') && line.includes('ERROR'))
+        return `<span class="log-err">${line}</span>`;
+      if (line.startsWith('WARNING'))
+        return `<span class="log-warn">${line}</span>`;
+      if (line.match(/^INFO.*(?:initialized|complete|finished|Starting|shutdown|healthy|accepted)/i)
+          || line.match(/\[aiperf.*\] (?:Done|Measurement window complete|Engine healthy)/i)
+          || line.match(/\[(?:collector|trtllm-serve)\].*(?:accepted|ready|loaded|found)/i))
+        return `<span class="log-ok">${line}</span>`;
+      if (line.match(/^\[aiperf.*\] ──/))
+        return `<span class="log-ok">${line}</span>`;
+      return line;
+    })
+    .join('\n');
+}
+
+function switchJdTab(tab) {
+  const isSpecs = tab === 'specs';
+  document.getElementById('jd-panel-specs').classList.toggle('hidden', !isSpecs);
+  document.getElementById('jd-panel-logs').classList.toggle('hidden',  isSpecs);
+  document.getElementById('jd-mtab-specs').classList.toggle('active',  isSpecs);
+  document.getElementById('jd-mtab-logs').classList.toggle('active',  !isSpecs);
+}
+
+function switchLogsTab(id, container, btn) {
+  const job = JOB_DATA[id];
+  if (!job || !job.logs) return;
+  document.querySelectorAll('.jd-logs-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const pre = document.getElementById('jd-logs-pre');
+  if (pre) {
+    pre.innerHTML = colorizeLogs(job.logs[container]);
+    if (job.status === 'failed' && container === 'engine') pre.scrollTop = pre.scrollHeight;
+    else pre.scrollTop = 0;
+  }
+  const countEl = document.getElementById('jd-logs-line-count');
+  if (countEl) {
+    const lines = (job.logs[container] || '').split('\n').length;
+    countEl.textContent = lines + ' lines';
+  }
+}
+
+function toggleLogs(id) {
+  const body = document.getElementById('jd-logs-body');
+  const btn  = document.getElementById('jd-toggle-btn');
+  if (!body || !btn) return;
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  btn.textContent = hidden ? '▼ Collapse' : '▶ Expand';
+}
+
+function copyLogs(id) {
+  const job = JOB_DATA[id];
+  if (!job || !job.logs) return;
+  // Copy whichever tab is currently active
+  const activeTab = document.querySelector('.jd-logs-tab.active');
+  const container = activeTab ? activeTab.textContent.trim() : 'engine';
+  const text = job.logs[container] || '';
+  navigator.clipboard.writeText(text).then(function() {
+    const btn = document.getElementById('jd-copy-btn');
+    if (btn) {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    }
+  });
+}
+</script>
+
+
+<!-- ══════════════════════════════════
+     PAGE: REPORTS
+══════════════════════════════════ -->
+<div class="page" id="page-reports">
+  <div class="jobs-page-wrap">
+    <div class="jobs-page-header">
+      <div>
+        <div class="jobs-page-title">Reports</div>
+        <div class="jobs-page-sub">Completed benchmark reports</div>
+      </div>
+    </div>
+    <div class="jobs-table-wrap">
+      <table class="jobs-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Engine · Quant</th>
+            <th>Hardware</th>
+            <th>Requests</th>
+            <th>Throughput</th>
+            <th>Submitted by</th>
+            <th>Completed</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Llama-3.1-8B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">meta-llama/Llama-3.1-8B-Instruct</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;BF16</td>
+            <td>RTX 4000 Ada</td>
+            <td>16 concurrent · 100 reqs</td>
+            <td>512 tok/s</td>
+            <td>Gang Lim</td>
+            <td style="color:var(--aka-gray-500);">Apr 14, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Llama-3.1-8B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">meta-llama/Llama-3.1-8B-Instruct</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;FP8</td>
+            <td>RTX 4000 Ada</td>
+            <td>16 concurrent · 100 reqs</td>
+            <td>409 tok/s</td>
+            <td>Jane Doe</td>
+            <td style="color:var(--aka-gray-500);">Apr 12, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Llama-3.1-70B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">meta-llama/Llama-3.1-70B-Instruct</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;FP8</td>
+            <td>RTX Pro 6000</td>
+            <td>32 concurrent · 200 reqs</td>
+            <td>1,284 tok/s</td>
+            <td>Gang Lim</td>
+            <td style="color:var(--aka-gray-500);">Apr 13, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Llama-3.3-70B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">meta-llama/Llama-3.3-70B-Instruct</div></td>
+            <td><span class="job-engine-badge sglang">SGLang</span> &nbsp;FP8</td>
+            <td>RTX Pro 6000</td>
+            <td>50 concurrent · 200 reqs</td>
+            <td>1,891 tok/s</td>
+            <td>Sarah Chen</td>
+            <td style="color:var(--aka-gray-500);">Apr 11, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Mistral-7B-Instruct-v0.3</div><div style="font-size:11px;color:var(--aka-gray-400);">mistralai/Mistral-7B-Instruct-v0.3</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;BF16</td>
+            <td>RTX 4000 Ada</td>
+            <td>8 concurrent · 100 reqs</td>
+            <td>487 tok/s</td>
+            <td>Mike Torres</td>
+            <td style="color:var(--aka-gray-500);">Apr 10, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Mistral-Small-3.1-24B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">mistralai/Mistral-Small-3.1-24B-Instruct</div></td>
+            <td><span class="job-engine-badge sglang">SGLang</span> &nbsp;FP8</td>
+            <td>RTX Pro 6000</td>
+            <td>16 concurrent · 100 reqs</td>
+            <td>743 tok/s</td>
+            <td>Sarah Chen</td>
+            <td style="color:var(--aka-gray-500);">Apr 9, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Qwen2.5-7B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">Qwen/Qwen2.5-7B-Instruct</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;BF16</td>
+            <td>RTX 4000 Ada</td>
+            <td>16 concurrent · 100 reqs</td>
+            <td>531 tok/s</td>
+            <td>Jane Doe</td>
+            <td style="color:var(--aka-gray-500);">Apr 9, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Qwen2.5-72B-Instruct</div><div style="font-size:11px;color:var(--aka-gray-400);">Qwen/Qwen2.5-72B-Instruct</div></td>
+            <td><span class="job-engine-badge sglang">SGLang</span> &nbsp;FP8</td>
+            <td>RTX Pro 6000</td>
+            <td>32 concurrent · 200 reqs</td>
+            <td>1,102 tok/s</td>
+            <td>Gang Lim</td>
+            <td style="color:var(--aka-gray-500);">Apr 8, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">gemma-3-12b-it</div><div style="font-size:11px;color:var(--aka-gray-400);">google/gemma-3-12b-it</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;BF16</td>
+            <td>RTX 4000 Ada</td>
+            <td>8 concurrent · 100 reqs</td>
+            <td>398 tok/s</td>
+            <td>Mike Torres</td>
+            <td style="color:var(--aka-gray-500);">Apr 7, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">gemma-3-27b-it</div><div style="font-size:11px;color:var(--aka-gray-400);">google/gemma-3-27b-it</div></td>
+            <td><span class="job-engine-badge sglang">SGLang</span> &nbsp;FP8</td>
+            <td>RTX Pro 6000</td>
+            <td>16 concurrent · 100 reqs</td>
+            <td>672 tok/s</td>
+            <td>Sarah Chen</td>
+            <td style="color:var(--aka-gray-500);">Apr 6, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">DeepSeek-R1-Distill-Llama-8B</div><div style="font-size:11px;color:var(--aka-gray-400);">deepseek-ai/DeepSeek-R1-Distill-Llama-8B</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;BF16</td>
+            <td>RTX 4000 Ada</td>
+            <td>8 concurrent · 100 reqs</td>
+            <td>446 tok/s</td>
+            <td>Gang Lim</td>
+            <td style="color:var(--aka-gray-500);">Apr 5, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">DeepSeek-R1-Distill-Qwen-32B</div><div style="font-size:11px;color:var(--aka-gray-400);">deepseek-ai/DeepSeek-R1-Distill-Qwen-32B</div></td>
+            <td><span class="job-engine-badge sglang">SGLang</span> &nbsp;FP8</td>
+            <td>RTX Pro 6000</td>
+            <td>16 concurrent · 100 reqs</td>
+            <td>819 tok/s</td>
+            <td>Jane Doe</td>
+            <td style="color:var(--aka-gray-500);">Apr 4, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+          <tr onclick="showPage('report')">
+            <td><div class="job-model">Phi-4</div><div style="font-size:11px;color:var(--aka-gray-400);">microsoft/phi-4</div></td>
+            <td><span class="job-engine-badge vllm">vLLM</span> &nbsp;BF16</td>
+            <td>RTX 4000 Ada</td>
+            <td>16 concurrent · 100 reqs</td>
+            <td>561 tok/s</td>
+            <td>Mike Torres</td>
+            <td style="color:var(--aka-gray-500);">Apr 3, 2026</td>
+            <td><button class="btn-view">View →</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     PAGE: REPORT
+══════════════════════════════════ -->
+<div class="page" id="page-report">
+<div class="rpt-wrap">
+
+  <!-- Header -->
+  <button class="btn-back">← Back</button>
+  <div class="rpt-header-row">
+    <div>
+      <div class="rpt-title">nvidia/Llama-3.1-8B-Instruct-FP8</div>
+      <div class="rpt-subtitle">
+        <span class="job-engine-badge vllm" style="margin-right:4px;">vLLM</span>
+        FP8 &nbsp;·&nbsp; NVIDIA RTX 4000 Ada Generation &nbsp;·&nbsp; Concurrency 16 &nbsp;·&nbsp; ISL 512 / OSL 256 tokens &nbsp;·&nbsp; 100 requests
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; flex-shrink:0; margin-top:2px;">
+      <button class="btn-export-rpt">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 7l4 4 4-4M2 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Export PDF
+      </button>
+      <button class="btn-export-rpt">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 7l4 4 4-4M2 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Export JSON
+      </button>
+    </div>
+  </div>
+
+  <!-- Two-column grid -->
+  <div class="rpt-grid">
+
+    <!-- ── LEFT: Performance + GPU charts ── -->
+    <div class="rpt-left">
+
+      <!-- Headline stats -->
+      <div class="rpt-stat-grid">
+        <div class="rpt-stat-card highlight">
+          <div class="rpt-stat-label">Output Throughput</div>
+          <div class="rpt-stat-value">408.8</div>
+          <div class="rpt-stat-unit">tokens / sec</div>
+          <div class="rpt-stat-sub">100 requests · 62.6 s</div>
+        </div>
+        <div class="rpt-stat-card">
+          <div class="rpt-stat-label">TTFT p50</div>
+          <div class="rpt-stat-value">736</div>
+          <div class="rpt-stat-unit">ms</div>
+          <div class="rpt-stat-sub"><span>p99: 4,645 ms</span></div>
+        </div>
+        <div class="rpt-stat-card">
+          <div class="rpt-stat-label">Inter-Token Latency p50</div>
+          <div class="rpt-stat-value">31.5</div>
+          <div class="rpt-stat-unit">ms / token</div>
+          <div class="rpt-stat-sub"><span>p99: 37.8 ms</span></div>
+        </div>
+        <div class="rpt-stat-card">
+          <div class="rpt-stat-label">Request Latency p50</div>
+          <div class="rpt-stat-value">8,630</div>
+          <div class="rpt-stat-unit">ms</div>
+          <div class="rpt-stat-sub"><span>p99: 12,420 ms</span></div>
+        </div>
+      </div>
+
+      <!-- AIPerf metrics table -->
+      <div class="rpt-card">
+        <div style="margin-bottom:12px;">
+          <span class="rpt-card-title">LLM Metrics · aiperf 0.19.0</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="aiperf-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>avg</th>
+                <th>min</th>
+                <th>max</th>
+                <th>p99</th>
+                <th>p90</th>
+                <th>p50</th>
+                <th>std</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="aiperf-highlight">
+                <td>Time to First Token (ms)</td>
+                <td>1,036.40</td><td>132.55</td><td>4,704.24</td><td>4,701.99</td><td>2,827.13</td><td>583.49</td><td>1,241.50</td>
+              </tr>
+              <tr>
+                <td>Time to Second Token (ms)</td>
+                <td>204.75</td><td>0.00</td><td>2,316.41</td><td>1,878.20</td><td>270.54</td><td>47.25</td><td>417.93</td>
+              </tr>
+              <tr class="aiperf-highlight">
+                <td>Request Latency (ms)</td>
+                <td>9,138.98</td><td>7,360.25</td><td>12,320.27</td><td>12,319.62</td><td>12,185.15</td><td>8,608.15</td><td>1,375.31</td>
+              </tr>
+              <tr class="aiperf-highlight">
+                <td>Inter Token Latency (ms)</td>
+                <td>31.77</td><td>27.69</td><td>45.63</td><td>36.80</td><td>33.15</td><td>31.51</td><td>2.23</td>
+              </tr>
+              <tr>
+                <td>Output Token Throughput Per User (tokens/sec/user)</td>
+                <td>31.61</td><td>21.92</td><td>36.12</td><td>36.11</td><td>33.47</td><td>31.74</td><td>1.93</td>
+              </tr>
+              <tr>
+                <td>Output Sequence Length (tokens)</td>
+                <td>256.00</td><td>256.00</td><td>256.00</td><td>256.00</td><td>256.00</td><td>256.00</td><td>0.00</td>
+              </tr>
+              <tr>
+                <td>Input Sequence Length (tokens)</td>
+                <td>512.00</td><td>512.00</td><td>512.00</td><td>512.00</td><td>512.00</td><td>512.00</td><td>0.00</td>
+              </tr>
+              <tr>
+                <td>Output Token Throughput (tokens/sec)</td>
+                <td>409.43</td>
+                <td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td>
+              </tr>
+              <tr>
+                <td>Request Throughput (requests/sec)</td>
+                <td>1.60</td>
+                <td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td>
+              </tr>
+              <tr>
+                <td>Request Count (requests)</td>
+                <td>100</td>
+                <td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td><td class="aiperf-na">N/A</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- GPU activity summary -->
+      <div class="rpt-card">
+        <div class="rpt-card-title" style="margin-bottom:12px;">GPU Activity</div>
+        <table class="aiperf-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>avg</th>
+              <th>p50</th>
+              <th>p95</th>
+              <th>peak</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>GPU Utilisation (%)</td>
+              <td>75.7</td><td>100</td><td>100</td><td>100</td>
+            </tr>
+            <tr>
+              <td>DRAM Active (0–1)</td>
+              <td>0.493</td><td>0.550</td><td>0.832</td><td>0.832</td>
+            </tr>
+            <tr>
+              <td>Tensor Core Active (0–1)</td>
+              <td>0.074</td><td>0.076</td><td>0.133</td><td>0.133</td>
+            </tr>
+            <tr>
+              <td>GR Engine Active (0–1)</td>
+              <td>0.487</td><td>0.402</td><td>1.000</td><td>1.000</td>
+            </tr>
+            <tr>
+              <td>SM Clock (MHz)</td>
+              <td>1,828</td><td>2,340</td><td>2,355</td><td>2,355</td>
+            </tr>
+            <tr>
+              <td>Memory Clock (MHz)</td>
+              <td>6,570</td><td>8,551</td><td>8,551</td><td>8,551</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px; font-size:11px; color:var(--aka-gray-400);">Thermal throttle detected: No &nbsp;·&nbsp; 37 samples · 2 s interval</div>
+      </div>
+
+    </div><!-- /rpt-left -->
+
+    <!-- ── RIGHT: Sidebar ── -->
+    <div class="rpt-right">
+
+      <!-- Run config -->
+      <div class="rpt-card">
+        <div class="rpt-card-title">Run Configuration</div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Model</span><span class="rpt-kv-val" style="font-size:11px; text-align:right;">Llama-3.1-8B-Instruct-FP8</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Org</span><span class="rpt-kv-val" style="font-size:11px;">nvidia/</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Engine</span><span class="rpt-kv-val"><span class="job-engine-badge vllm">vLLM</span></span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Quantisation</span><span class="rpt-kv-val">FP8</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Hardware</span><span class="rpt-kv-val" style="font-size:11px;">RTX 4000 Ada</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Concurrency</span><span class="rpt-kv-val">16</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Requests</span><span class="rpt-kv-val">100</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">ISL (mean)</span><span class="rpt-kv-val">512 tokens</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">OSL (hard cap)</span><span class="rpt-kv-val">256 tokens</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Streaming</span><span class="rpt-kv-val">Enabled</span></div>
+        <div class="rpt-kv-row"><span class="rpt-kv-key">Duration</span><span class="rpt-kv-val">62.6 s</span></div>
+      </div>
+
+      <!-- VRAM -->
+      <div class="rpt-card">
+        <div class="rpt-card-title">VRAM Usage</div>
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:2px;">
+          <span style="font-weight:700; font-size:20px; color:var(--aka-gray-800);">17.77 <span style="font-size:12px; color:var(--aka-gray-400); font-weight:400;">GB</span></span>
+          <span style="font-size:11px; color:var(--aka-gray-500); margin-top:6px;">of 20.0 GB</span>
+        </div>
+        <div class="rpt-vram-bar">
+          <div class="rpt-vram-fill warn" style="width:88.9%;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--aka-gray-400);">
+          <span>Peak usage</span>
+          <span style="color:var(--aka-amber); font-weight:700;">11.1% headroom</span>
+        </div>
+      </div>
+
+
+      <!-- GPU Utilisation summary -->
+      <div class="rpt-card">
+        <div class="rpt-card-title">GPU Utilisation Summary</div>
+        <div class="rpt-kv-row">
+          <span class="rpt-kv-key">Avg (full run)</span>
+          <span class="rpt-kv-val">57.2%</span>
+        </div>
+        <div class="rpt-kv-row">
+          <span class="rpt-kv-key">p50 (median)</span>
+          <span class="rpt-kv-val muted">41% <span style="font-size:10px;">(warmup phase)</span></span>
+        </div>
+        <div class="rpt-kv-row">
+          <span class="rpt-kv-key">Peak</span>
+          <span class="rpt-kv-val">100%</span>
+        </div>
+        <div class="rpt-kv-row">
+          <span class="rpt-kv-key">Active samples</span>
+          <span class="rpt-kv-val">30 / 37</span>
+        </div>
+        <div class="rpt-kv-row">
+          <span class="rpt-kv-key">DRAM active (p95)</span>
+          <span class="rpt-kv-val">0.850</span>
+        </div>
+        <div class="rpt-kv-row">
+          <span class="rpt-kv-key">Tensor active (p50)</span>
+          <span class="rpt-kv-val">0.081</span>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:var(--aka-gray-500); background:var(--aka-gray-50); border:1px solid var(--aka-gray-200); border-radius:5px; padding:7px 9px; line-height:1.5;">
+          At full load, DRAM active = 0.85 vs tensor active = 0.11 — GPU is <strong>memory bandwidth bound</strong> during decode, as expected for FP8 at this batch size.
+        </div>
+      </div>
+
+    </div><!-- /rpt-right -->
+
+  </div><!-- /rpt-grid -->
+</div><!-- /rpt-wrap -->
+</div><!-- /page-report -->
+
+
+<script>
+// ── Report sparkline data ─────────────────────────────────────────────────
+// 37 DCGM samples at 2s interval from the vLLM FP8 run.
+// Pattern: 6 idle → 15 warmup (gpu=41%, dram=0.146) → 16 full (gpu=100%, dram=0.850) → 1 post
+const SPARK_DATA = (() => {
+  const samples = [];
+  // 6 idle samples
+  for (let i = 0; i < 6; i++) samples.push({ gpu: 0, dram: 0.002, tensor: 0, phase: 'idle' });
+  // 15 warmup samples (gpu_util=41%, dram lags one sample)
+  samples.push({ gpu: 41, dram: 0.002, tensor: 0, phase: 'warm' }); // lag
+  for (let i = 0; i < 14; i++) samples.push({ gpu: 41, dram: 0.146, tensor: 0.081, phase: 'warm' });
+  // 16 active samples (dram lags one sample)
+  samples.push({ gpu: 100, dram: 0.146, tensor: 0.081, phase: 'active' }); // lag
+  for (let i = 0; i < 15; i++) samples.push({ gpu: 100, dram: 0.850, tensor: 0.114, phase: 'active' });
+  // final sample (post-benchmark power drop)
+  samples.push({ gpu: 0, dram: 0.850, tensor: 0.114, phase: 'idle' });
+  return samples;
+})();
+
+function buildSparklines() {
+  function renderSpark(containerId, valueFn, colorFn, maxVal) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const h = el.offsetHeight || 56;
+    el.innerHTML = SPARK_DATA.map(s => {
+      const pct = Math.max(2, (valueFn(s) / maxVal) * 100);
+      return `<div class="rpt-spark-bar" style="height:${pct}%;background:${colorFn(s)};"></div>`;
+    }).join('');
+  }
+
+  const phaseColor = {
+    idle:   'var(--aka-gray-200)',
+    warm:   'rgba(0,155,222,.45)',
+    active: 'var(--aka-blue)',
+  };
+
+  renderSpark('spark-util',   s => s.gpu,    s => phaseColor[s.phase], 100);
+  renderSpark('spark-dram',   s => s.dram,   s => '#7c3aed',            1.0);
+  renderSpark('spark-tensor', s => s.tensor, s => '#7c3aed',            1.0);
+}
+
+// Build sparklines when report page is shown
+const _origShowPage = typeof showPage !== 'undefined' ? showPage : null;
+</script>
+
+
+<!-- ══════════════════════════════════
+     STICKY ACTION BAR
+══════════════════════════════════ -->
+<div class="action-bar" id="action-bar">
+  <!-- 4-step progress (all done — model + engine + GPU + params configured) -->
+  <div class="action-steps">
+    <div class="action-step">
+      <span class="action-step-num done">✓</span>
+      <span class="action-step-label done">Model</span>
+    </div>
+    <div class="action-connector done"></div>
+    <div class="action-step">
+      <span class="action-step-num done">✓</span>
+      <span class="action-step-label done">Engine &amp; Quant</span>
+    </div>
+    <div class="action-connector done"></div>
+    <div class="action-step">
+      <span class="action-step-num done">✓</span>
+      <span class="action-step-label done">Hardware</span>
+    </div>
+    <div class="action-connector done"></div>
+    <div class="action-step">
+      <span class="action-step-num done">✓</span>
+      <span class="action-step-label done">Parameters</span>
+    </div>
+  </div>
+  <button class="btn-cta" onclick="openConfirmModal()">
+    <span class="btn-cta-icon">▶</span>
+    Run Benchmark
+  </button>
+</div>
+
+<script>
+  // ── Page navigation ──────────────────────────────────────────────────────
+  let _currentPage = 'configure';
+  function showPage(name) {
+    const prev = _currentPage;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    const navEl = document.getElementById('nav-' + name);
+    if (navEl) navEl.classList.add('active');
+    else if (name === 'job-detail') document.getElementById('nav-jobs').classList.add('active');
+    else if (name === 'report')     document.getElementById('nav-reports').classList.add('active');
+    // Update report back button based on where we came from
+    if (name === 'report') {
+      const labels = { 'job-detail': 'Job', 'reports': 'Reports', 'jobs': 'Jobs' };
+      const label = labels[prev] || 'Back';
+      document.querySelector('#page-report .btn-back').textContent = '← Back to ' + label;
+      document.querySelector('#page-report .btn-back').onclick = () => showPage(prev);
+    }
+    // Action bar only makes sense on configure page
+    document.getElementById('action-bar').style.display = name === 'configure' ? 'flex' : 'none';
+    // Build sparklines once the report page is visible (needs layout for heights)
+    if (name === 'report') requestAnimationFrame(buildSparklines);
+    _currentPage = name;
+    return false;
+  }
+
+  // ── Confirmation modal ───────────────────────────────────────────────────
+  function openConfirmModal() {
+    document.getElementById('confirm-modal').classList.remove('hidden');
+  }
+
+  function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+  }
+
+  function confirmRun() {
+    closeConfirmModal();
+    // In production: POST /api/jobs, then redirect to /jobs/:id
+    // For wireframe: switch to jobs page to show the new queued job
+    showPage('jobs');
+  }
+
+  // Close modal on overlay click
+  document.getElementById('confirm-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeConfirmModal();
+  });
+
+  // Close modal on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeConfirmModal();
+  });
+</script>
+</body>
+</html>

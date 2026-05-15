@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AKAbench — LLM Benchmark Portal by Akamai</title>
+<style>
+  :root {
+    --aka-blue: #009BDE;
+    --aka-blue-dark: #0078b0;
+    --aka-navy: #00234b;
+    --aka-navy-light: #003570;
+    --aka-light: #e8f5fd;
+    --aka-green: #22c55e;
+    --aka-gray-50: #f9fafb;
+    --aka-gray-100: #f3f4f6;
+    --aka-gray-200: #e5e7eb;
+    --aka-gray-300: #d1d5db;
+    --aka-gray-400: #9ca3af;
+    --aka-gray-500: #6b7280;
+    --aka-gray-600: #4b5563;
+    --aka-gray-700: #374151;
+    --aka-gray-800: #1f2937;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.15), 0 4px 6px -4px rgba(0,0,0,.1);
+    --shadow-xl: 0 20px 40px rgba(0,0,0,.15);
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #fff;
+    color: var(--aka-gray-800);
+    line-height: 1.6;
+  }
+
+  /* ── NAV ── */
+  nav {
+    background: var(--aka-navy);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-md);
+  }
+  .nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+  .nav-wordmark {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -.5px;
+  }
+  .nav-wordmark span { color: var(--aka-blue); }
+  .nav-divider {
+    width: 1px;
+    height: 22px;
+    background: rgba(255,255,255,.2);
+  }
+  .nav-subtitle {
+    font-size: 12px;
+    color: rgba(255,255,255,.55);
+    font-weight: 400;
+  }
+  .btn-nav-cta {
+    background: var(--aka-blue);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: background .15s;
+  }
+  .btn-nav-cta:hover { background: var(--aka-blue-dark); }
+
+  /* ── MODAL ── */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 40px 48px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  }
+  .modal-mascot { font-size: 48px; margin-bottom: 16px; }
+  .modal-box h3 {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--aka-navy);
+    margin-bottom: 10px;
+  }
+  .modal-box p {
+    font-size: 15px;
+    color: var(--aka-gray-500);
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+  .modal-close {
+    background: var(--aka-blue);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 10px 28px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .modal-close:hover { background: var(--aka-blue-dark); }
+
+  /* ── SECTIONS ── */
+  section { padding: 80px 24px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(160deg, var(--aka-navy) 0%, var(--aka-navy-light) 60%, #004e8c 100%);
+    padding: 90px 24px 0;
+    overflow: hidden;
+  }
+  .hero-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .hero-eyebrow {
+    display: inline-block;
+    background: rgba(0,155,222,.2);
+    color: var(--aka-blue);
+    border: 1px solid rgba(0,155,222,.4);
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 4px 14px;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-size: 48px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.15;
+    letter-spacing: -.02em;
+    margin-bottom: 20px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .hero h1 span { color: var(--aka-blue); }
+  .hero-sub {
+    font-size: 18px;
+    color: rgba(255,255,255,.72);
+    max-width: 560px;
+    margin: 0 auto 36px;
+    line-height: 1.65;
+  }
+  .hero-cta {
+    display: inline-block;
+    background: var(--aka-blue);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 14px 32px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all .15s;
+    box-shadow: 0 0 0 4px rgba(0,155,222,.25), 0 4px 14px rgba(0,155,222,.4);
+    margin-bottom: 56px;
+  }
+  .hero-cta:hover {
+    background: var(--aka-blue-dark);
+    transform: translateY(-1px);
+  }
+  .hero-screenshot {
+    display: block;
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    border-radius: 10px 10px 0 0;
+    box-shadow: 0 -4px 40px rgba(0,0,0,.35), 0 20px 60px rgba(0,0,0,.4);
+    border: 1px solid rgba(255,255,255,.1);
+    border-bottom: none;
+  }
+
+
+  /* ── WHY SECTION ── */
+  .why {
+    background: #fff;
+    border-top: 1px solid var(--aka-gray-200);
+  }
+  .why-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  .why-mascot {
+    height: 320px;
+    width: auto;
+  }
+  .why-header .section-label { margin-bottom: 6px; }
+  .why-header .section-title { margin-bottom: 0; }
+  .why-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 32px;
+    margin-top: 40px;
+  }
+  .why-card {
+    padding: 28px;
+    border: 1px solid var(--aka-gray-200);
+    border-radius: var(--radius);
+    background: var(--aka-gray-50);
+  }
+  .why-card-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .why-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--aka-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .why-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--aka-blue);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .why-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--aka-navy);
+    line-height: 1.3;
+    letter-spacing: -.01em;
+    margin: 0;
+  }
+  .why-card p {
+    font-size: 14px;
+    color: var(--aka-gray-500);
+    line-height: 1.7;
+  }
+
+  /* ── VALUE PROPS ── */
+  .values { background: var(--aka-gray-50); }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--aka-blue);
+    margin-bottom: 10px;
+  }
+  .section-title {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--aka-navy);
+    letter-spacing: -.02em;
+    margin-bottom: 12px;
+    line-height: 1.2;
+  }
+  .section-sub {
+    font-size: 16px;
+    color: var(--aka-gray-500);
+    max-width: 500px;
+    margin-bottom: 56px;
+  }
+  /* ── VALUE ROWS ── */
+  .value-list {
+    display: flex;
+    flex-direction: column;
+    gap: 64px;
+  }
+  .value-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    align-items: center;
+  }
+  .value-row.reverse { direction: rtl; }
+  .value-row.reverse > * { direction: ltr; }
+  .value-row-screenshot {
+    width: 100%;
+    display: block;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--aka-gray-200);
+  }
+  .value-row-text { }
+  .value-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--aka-light);
+    color: var(--aka-blue);
+    font-size: 13px;
+    font-weight: 800;
+    margin-bottom: 16px;
+  }
+  .value-row h3 {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--aka-navy);
+    margin-bottom: 12px;
+    letter-spacing: -.02em;
+    line-height: 1.25;
+  }
+  .value-row p {
+    font-size: 16px;
+    color: var(--aka-gray-500);
+    line-height: 1.7;
+  }
+
+  /* ── HOW IT WORKS ── */
+  .how { background: #fff; }
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    margin-top: 48px;
+    position: relative;
+  }
+  .steps::before {
+    content: '';
+    position: absolute;
+    top: 30px;
+    left: calc(16.67% + 16px);
+    right: calc(16.67% + 16px);
+    height: 2px;
+    background: var(--aka-gray-200);
+    z-index: 0;
+  }
+  .step {
+    text-align: center;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+  .step-icon {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: var(--aka-navy);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    border: 4px solid #fff;
+    box-shadow: var(--shadow-md);
+  }
+  .step h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--aka-navy);
+    margin-bottom: 8px;
+  }
+  .step p {
+    font-size: 14px;
+    color: var(--aka-gray-500);
+    line-height: 1.6;
+  }
+
+  /* ── HARDWARE ── */
+  .hardware { background: var(--aka-navy); }
+  .hardware .section-label { color: rgba(0,155,222,.9); }
+  .hardware .section-title { color: #fff; }
+  .hardware .section-sub { color: rgba(255,255,255,.55); }
+  .hw-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 780px;
+  }
+  .hw-card {
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: var(--radius);
+    padding: 28px 28px 32px;
+  }
+  .hw-card.featured {
+    background: rgba(0,155,222,.1);
+    border-color: rgba(0,155,222,.35);
+  }
+  .hw-badge {
+    display: inline-block;
+    background: rgba(0,155,222,.2);
+    color: var(--aka-blue);
+    border: 1px solid rgba(0,155,222,.4);
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    margin-bottom: 14px;
+  }
+  .hw-card h3 {
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 20px;
+    letter-spacing: -.01em;
+  }
+  .hw-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    font-size: 13px;
+  }
+  .hw-stat:last-of-type { border-bottom: none; }
+  .hw-stat-label { color: rgba(255,255,255,.5); }
+  .hw-stat-value { color: #fff; font-weight: 600; }
+  .hw-note {
+    margin-top: 18px;
+    font-size: 12px;
+    color: rgba(255,255,255,.45);
+    line-height: 1.5;
+  }
+
+  /* ── CTA FOOTER ── */
+  .cta-section {
+    background: var(--aka-light);
+    text-align: center;
+    padding: 80px 24px;
+    border-top: 1px solid var(--aka-gray-200);
+  }
+  .cta-section h2 {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--aka-navy);
+    letter-spacing: -.02em;
+    margin-bottom: 12px;
+  }
+  .cta-section p {
+    font-size: 16px;
+    color: var(--aka-gray-500);
+    margin-bottom: 32px;
+  }
+  .cta-section a.btn-primary {
+    display: inline-block;
+    background: var(--aka-blue);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 14px 34px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background .15s;
+    box-shadow: 0 4px 14px rgba(0,155,222,.35);
+  }
+  .cta-section a.btn-primary:hover { background: var(--aka-blue-dark); }
+  .cta-email {
+    display: block;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--aka-gray-400);
+  }
+  .cta-email a { color: var(--aka-blue); text-decoration: none; }
+  .cta-email a:hover { text-decoration: underline; }
+
+  /* ── FAQ ── */
+  .faq-section { padding: 80px 0; background: var(--aka-gray-50); }
+  .faq-list { max-width: 720px; margin: 48px auto 0; display: flex; flex-direction: column; gap: 32px; }
+  .faq-item {}
+  .faq-question { font-size: 17px; font-weight: 600; color: var(--aka-navy); margin-bottom: 10px; }
+  .faq-answer { font-size: 16px; color: var(--aka-gray-600); line-height: 1.7; }
+  .faq-answer ol { margin: 8px 0 0 20px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+  /* ── SITE FOOTER ── */
+  footer {
+    background: var(--aka-navy);
+    padding: 24px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255,255,255,.35);
+  }
+  footer span { color: rgba(255,255,255,.55); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 720px) {
+    .hero h1 { font-size: 32px; }
+    .hero-sub { font-size: 16px; }
+    .value-row, .value-row.reverse { grid-template-columns: 1fr; direction: ltr; }
+    .value-row.reverse img { order: -1; }
+    .steps { grid-template-columns: 1fr; gap: 40px; }
+    .steps::before { display: none; }
+    .hw-grid { grid-template-columns: 1fr; }
+    .section-title { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="#">
+      <div class="nav-wordmark">AKA<span>bench</span></div>
+    </a>
+    <a class="btn-nav-cta" href="#" onclick="document.getElementById('access-modal').style.display='flex'; return false;">Request Access</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Akamai Internal Tool</div>
+    <h1>Your internal<br><span>LLM Benchmark</span> portal</h1>
+    <p class="hero-sub">Generate reproducible LLM inference benchmark reports on Akamai cloud GPUs. Purpose-built for Akamai field teams.</p>
+    <a class="hero-cta" href="#" onclick="document.getElementById('access-modal').style.display='flex'; return false;">Request Access →</a>
+    <img
+      class="hero-screenshot"
+      src="screenshots/hero.jpg"
+      alt="AKAbench benchmark configuration wizard — model selection, engine & quantisation, hardware, and test parameters"
+    />
+  </div>
+</section>
+
+<!-- WHY SECTION -->
+<section class="why">
+  <div class="container">
+    <div class="why-header">
+      <img src="screenshots/masot.png" class="why-mascot" alt="AKAbench mascot" />
+      <div>
+        <div class="section-label">Why AKAbench</div>
+        <h2 class="section-title">Built to win the early GPU conversation</h2>
+        <p style="margin-top:16px; font-style:italic; color:var(--aka-gray-500); font-size:15px; line-height:1.6;">Customer: "Have you benchmarked model X on your GPUs?"<br>You: "Yes."</p>
+      </div>
+    </div>
+    <div class="why-grid">
+      <div class="why-card">
+        <div class="why-card-header">
+          <div class="why-icon">
+            <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+          </div>
+          <h3>Reproducible benchmarks, on demand</h3>
+        </div>
+        <p>Same methodology, same tooling, every time — for any model.</p>
+      </div>
+      <div class="why-card">
+        <div class="why-card-header">
+          <div class="why-icon">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+          </div>
+          <h3>Confirm value early in the sales cycle</h3>
+        </div>
+        <p>Real performance numbers on Akamai hardware before a prospect commits.</p>
+      </div>
+      <div class="why-card">
+        <div class="why-card-header">
+          <div class="why-icon">
+            <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3>One place for all benchmark reports</h3>
+        </div>
+        <p>A shared repository that teams can access, reuse, and build on.</p>
+      </div>
+
+      <div class="why-card">
+        <div class="why-card-header">
+          <div class="why-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <h3>Access to limited GPU resources</h3>
+        </div>
+        <p>Purpose-built tooling ensures GPU benchmark capacity is used efficiently and accessibly.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VALUE PROPS -->
+<section class="values">
+  <div class="container">
+    <div class="value-list">
+
+      <div class="value-row">
+        <img class="value-row-screenshot" src="screenshots/model.jpg" alt="Model selection panel" />
+        <div class="value-row-text">
+          <h3>45+ Models, Ready to Bench 🏋️</h3>
+          <p>Search and benchmark popular open-source models — LLaMA, Qwen, Mistral, Gemma, and more. New models are added continuously as they gain adoption.</p>
+        </div>
+      </div>
+
+      <div class="value-row reverse">
+        <img class="value-row-screenshot" src="screenshots/engine.jpg" alt="Engine and quantisation configuration" />
+        <div class="value-row-text">
+          <h3>2 Popular Open Source Engines 🚀</h3>
+          <p>Choose between <strong>vLLM</strong> for throughput-optimised workloads and <strong>SGLang</strong> for shared-prefix and RAG scenarios. Tune engine parameters to match your customer's exact use case.</p>
+        </div>
+      </div>
+
+      <div class="value-row">
+        <img class="value-row-screenshot" src="screenshots/benchmark.jpg" alt="Benchmark report with TTFT, latency and throughput charts" />
+        <div class="value-row-text">
+          <h3>Benchmark with NVIDIA AIPerf 🎯 <a href="https://docs.nvidia.com/nim/benchmarking/llm/latest/step-by-step.html" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; vertical-align:middle; color:inherit; text-decoration:none; opacity:0.6; margin-left:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></h3>
+          <p>Every run is driven by NVIDIA's AIPerf benchmarking tool. Get TTFT, inter-token latency, end-to-end latency, and throughput — the same numbers your customers use to evaluate production readiness.</p>
+        </div>
+      </div>
+
+      <div class="value-row reverse">
+        <img class="value-row-screenshot" src="screenshots/reports.jpg" alt="Benchmark jobs dashboard with shared report repository" />
+        <div class="value-row-text">
+          <h3>Shared Report Repository 🗂️</h3>
+          <p>All completed benchmarks land in a shared library. Browse, compare, and export PDF reports — no need to re-run jobs others already ran.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how">
+  <div class="container">
+    <div class="section-label">How it works</div>
+    <h2 class="section-title">Three steps to a benchmark report</h2>
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-icon">1</div>
+        <h3>Configure</h3>
+        <p>Select your model, inference engine, quantisation format, GPU tier, and load profile in a guided 4-step wizard.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-icon">2</div>
+        <h3>Run</h3>
+        <p>Submit the job. AKAbench deploys it on a GPU node, starts the inference server, and runs AIPerf automatically.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-icon">3</div>
+        <h3>Report</h3>
+        <p>View throughput and latency charts. Export a polished PDF to share directly with your customer.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- HARDWARE -->
+<section class="hardware">
+  <div class="container">
+    <div class="section-label">Infrastructure</div>
+    <h2 class="section-title">Real GPUs.&nbsp;Real numbers.</h2>
+    <p class="section-sub">Benchmarks run on Akamai cloud GPUs.</p>
+
+    <div class="hw-grid">
+
+      <div class="hw-card">
+        <div class="hw-badge">Cost-efficient</div>
+        <h3>RTX 4000 Ada</h3>
+        <div class="hw-stat">
+          <span class="hw-stat-label">VRAM</span>
+          <span class="hw-stat-value">20 GB</span>
+        </div>
+        <div class="hw-stat">
+          <span class="hw-stat-label">BF16 performance</span>
+          <span class="hw-stat-value">48.7 TFLOPS</span>
+        </div>
+        <div class="hw-stat">
+          <span class="hw-stat-label">Max model size</span>
+          <span class="hw-stat-value">≤ 13B FP16</span>
+        </div>
+        <p class="hw-note">Ideal for smaller models and cost-sensitive customer conversations.</p>
+      </div>
+
+      <div class="hw-card featured">
+        <div class="hw-badge">Max performance · NVFP4</div>
+        <h3>RTX Pro 6000 Server Edition</h3>
+        <div class="hw-stat">
+          <span class="hw-stat-label">VRAM</span>
+          <span class="hw-stat-value">96 GB</span>
+        </div>
+        <div class="hw-stat">
+          <span class="hw-stat-label">BF16 performance</span>
+          <span class="hw-stat-value">314.6 TFLOPS</span>
+        </div>
+        <div class="hw-stat">
+          <span class="hw-stat-label">Max model size</span>
+          <span class="hw-stat-value">Large models</span>
+        </div>
+        <p class="hw-note">Supports NVFP4 quantisation. Recommended for flagship model benchmarks and large-context workloads.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq-section">
+  <div class="container" style="text-align:center;">
+    <div class="section-label">FAQ</div>
+    <h2 class="section-title">Common questions</h2>
+  </div>
+  <div class="faq-list">
+    <div class="faq-item">
+      <div class="faq-question">What are the current limitations of this portal?</div>
+      <div class="faq-answer">AKAbench currently supports LLM inference benchmarks on a single GPU card. Multi-GPU configurations are not yet supported.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">Why the focus on early conversation of the sales cycle?</div>
+      <div class="faq-answer">Deep performance validation is highly customer-specific — every engagement has its own model, engine, load profile, and acceptance criteria. Trying to accommodate every permutation in a single portal would make it too complex to use quickly.<br><br>AKAbench is designed for the first answer, not the final one. When a customer needs deeper fine-tuning, you can export the benchmark parameters and continue the analysis on your own workstation — picking up exactly where the portal left off.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">What's on the roadmap?</div>
+      <div class="faq-answer">
+        The roadmap is driven by user feedback. A few ideas we can explore:
+        <ol>
+          <li>Benchmark support for other model types — vision, ASR, and image generation.</li>
+          <li>Multi-GPU inference — Data Parallel and Tensor Parallel configurations.</li>
+          <li>Bring-Your-Own-GPU — Run the same benchmark quality on any GPU.</li>
+        </ol>
+      </div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">How long does a benchmark run take?</div>
+      <div class="faq-answer">Usually over 5 minutes — it's the nature of this type of workload. Go grab a coffee.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">Can I share benchmark results with my customer?</div>
+      <div class="faq-answer">Absolutely. Reports are designed to be shared — export as PDF and hand it directly to your customer.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">Can I request a new model to be added?</div>
+      <div class="faq-answer">Yes. If the model has broad popularity, I'll get it added. Reach out via Webex.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">What else is pending on your MVP?</div>
+      <div class="faq-answer">I need an RTX Pro 6000 Server Edition please 🥹.</div>
+    </div>
+  </div>
+</section>
+
+<!-- REQUEST ACCESS MODAL -->
+<div id="access-modal" class="modal-backdrop" onclick="closeModal(event)">
+  <div class="modal-box">
+    <div class="modal-mascot">😄</div>
+    <h3>Thank you for the support!</h3>
+    <p>Please reach out to me via <strong>Webex</strong> and I'll get you set up.</p>
+    <button class="modal-close" onclick="document.getElementById('access-modal').style.display='none'">Close</button>
+  </div>
+</div>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>Want access?</h2>
+  <p>AKAbench is available to internal Akamai teams only. Reach out to get started.</p>
+  <a class="btn-primary" href="#" onclick="document.getElementById('access-modal').style.display='flex'; return false;">Request Access</a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  AKAbench · Internal use only
+</footer>
+
+<script>
+  function closeModal(e) {
+    if (e.target === document.getElementById('access-modal')) {
+      document.getElementById('access-modal').style.display = 'none';
+    }
+  }
+</script>
+</body>
+</html>

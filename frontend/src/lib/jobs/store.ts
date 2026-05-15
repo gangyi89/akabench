@@ -1,0 +1,247 @@
+import { sql } from '@/lib/db'
+import { getModel, getGpu } from '@/lib/catalogue/db'
+import type { Job, JobDetail, JobSubmitRequest, ReportListItem, EngineType, QuantType } from '@/lib/catalogue/types'
+
+export async function insertJob(job: Job, params: JobSubmitRequest, dtype: string): Promise<void> {
+  // concurrency_levels stored as space-separated string (easy bash loop in K8s template)
+  const concurrencyLevels = params.concurrencyLevels && params.concurrencyLevels.length > 0
+    ? params.concurrencyLevels.join(' ')
+    : null
+  // For sweep jobs use the first (lowest) level as the scalar concurrency value
+  const concurrency = params.concurrencyLevels && params.concurrencyLevels.length > 0
+    ? params.concurrencyLevels[0]
+    : (params.concurrency ?? 16)
+
+  await sql`
+    INSERT INTO jobs (
+      job_id, submitted_by, gpu_type, engine, model_id, quantisation,
+      dtype, kv_cache_dtype,
+      concurrency, concurrency_levels, input_tokens_mean, output_tokens_mean, request_count, streaming,
+      measurement_window, isl_distribution, backend,
+      max_model_len, gpu_memory_util, max_batch_size,
+      prefix_caching, chunked_prefill, flash_attention,
+      batch_scheduler, cuda_graphs
+    ) VALUES (
+      ${job.id}, ${job.submittedBy}, ${job.gpuId}, ${job.engine}, ${job.modelId},
+      ${job.quantisation ?? null},
+      ${dtype},
+      ${params.kvCacheDtype     ?? 'auto'},
+      ${concurrency}, ${concurrencyLevels},
+      ${params.inputTokensMean  ?? 512},
+      ${params.outputTokensMean ?? 256}, ${params.requestCount     ?? 100},
+      ${params.streaming        ?? true},
+      ${params.measurementWindow ?? 120}, ${params.islDistribution ?? 'normal-25'}, ${params.backend ?? 'openai'},
+      ${params.maxModelLen       ?? 2048}, ${params.gpuMemoryUtil  ?? 0.90},
+      ${params.maxBatchSize      ?? 64},
+      ${params.prefixCaching     ?? true}, ${params.chunkedPrefill ?? true},
+      ${params.flashAttention    ?? true},
+      ${params.batchScheduler    ?? 'inflight'}, ${params.cudaGraphs ?? true}
+    )
+  `
+}
+
+type JobRow = {
+  id: string
+  modelId: string
+  engine: string
+  quantisation: string | null
+  gpuId: string
+  submittedBy: string
+  submittedAt: Date
+  status: string
+  error: string | null
+  completedAt: Date | null
+  concurrencyLevels: string | null
+}
+
+function rowToJob(row: JobRow): Job {
+  const model = getModel(row.modelId)
+  const gpu   = getGpu(row.gpuId)
+  return {
+    id:                row.id,
+    modelId:           row.modelId,
+    modelName:         model?.displayName ?? row.modelId.split('/').pop() ?? row.modelId,
+    engine:            row.engine as Job['engine'],
+    quantisation:      row.quantisation as Job['quantisation'],
+    gpuId:             row.gpuId,
+    gpuName:           gpu?.name ?? row.gpuId,
+    submittedBy:       row.submittedBy,
+    submittedAt:       row.submittedAt.toISOString(),
+    status:            row.status as Job['status'],
+    error:             row.error,
+    completedAt:       row.completedAt?.toISOString() ?? null,
+    concurrencyLevels: row.concurrencyLevels ? row.concurrencyLevels.split(' ').map(Number) : null,
+  }
+}
+
+const JOB_SELECT = sql`
+  SELECT
+    j.job_id              AS id,
+    j.model_id            AS "modelId",
+    j.engine,
+    j.quantisation,
+    j.gpu_type            AS "gpuId",
+    j.submitted_by        AS "submittedBy",
+    j.created_at          AS "submittedAt",
+    j.concurrency_levels  AS "concurrencyLevels",
+    COALESCE(js.status, 'queued') AS status,
+    js.error,
+    js.completed_at       AS "completedAt"
+  FROM jobs j
+  LEFT JOIN job_status js ON js.job_id = j.job_id
+`
+
+export async function getJob(id: string): Promise<Job | null> {
+  const rows = await sql<JobRow[]>`
+    ${JOB_SELECT} WHERE j.job_id = ${id}
+  `
+  return rows[0] ? rowToJob(rows[0]) : null
+}
+
+export async function listJobs(): Promise<Job[]> {
+  const rows = await sql<JobRow[]>`
+    ${JOB_SELECT} ORDER BY j.created_at DESC
+  `
+  return rows.map(rowToJob)
+}
+
+type JobDetailRow = JobRow & {
+  dtype: string
+  kvCacheDtype: string
+  maxModelLen: number
+  gpuMemoryUtil: number
+  maxBatchSize: number
+  prefixCaching: boolean
+  chunkedPrefill: boolean
+  flashAttention: boolean
+  batchScheduler: string
+  cudaGraphs: boolean
+  concurrency: number
+  concurrencyLevels: string | null
+  inputTokensMean: number
+  outputTokensMean: number
+  requestCount: number
+  streaming: boolean
+  measurementWindow: number
+  islDistribution: string
+  backend: string
+}
+
+function rowToJobDetail(row: JobDetailRow): JobDetail {
+  // concurrency_levels stored as space-separated string, parse back to number[]
+  const concurrencyLevels = row.concurrencyLevels
+    ? row.concurrencyLevels.split(' ').map(Number)
+    : null
+  return {
+    ...rowToJob(row),
+    dtype: row.dtype,
+    kvCacheDtype: row.kvCacheDtype,
+    maxModelLen: row.maxModelLen,
+    gpuMemoryUtil: row.gpuMemoryUtil,
+    maxBatchSize: row.maxBatchSize,
+    prefixCaching: row.prefixCaching,
+    chunkedPrefill: row.chunkedPrefill,
+    flashAttention: row.flashAttention,
+    batchScheduler: row.batchScheduler,
+    cudaGraphs: row.cudaGraphs,
+    concurrency: row.concurrency,
+    concurrencyLevels,
+    inputTokensMean: row.inputTokensMean,
+    outputTokensMean: row.outputTokensMean,
+    requestCount: row.requestCount,
+    streaming: row.streaming,
+    measurementWindow: row.measurementWindow,
+    islDistribution: row.islDistribution as JobDetail['islDistribution'],
+    backend: (row.backend ?? 'openai') as JobDetail['backend'],
+  }
+}
+
+type ReportListRow = {
+  jobId:            string
+  modelId:          string
+  engine:           string
+  quantisation:     string | null
+  gpuId:            string
+  submittedBy:      string
+  completedAt:      Date
+  concurrency:      number
+  concurrencyLevels: string | null
+  requestCount:     number
+}
+
+export async function listCompletedJobs(): Promise<ReportListItem[]> {
+  const rows = await sql<ReportListRow[]>`
+    SELECT
+      j.job_id              AS "jobId",
+      j.model_id            AS "modelId",
+      j.engine,
+      j.quantisation,
+      j.gpu_type            AS "gpuId",
+      j.submitted_by        AS "submittedBy",
+      js.completed_at       AS "completedAt",
+      j.concurrency,
+      j.concurrency_levels  AS "concurrencyLevels",
+      j.request_count       AS "requestCount"
+    FROM jobs j
+    JOIN job_status js ON js.job_id = j.job_id
+    WHERE js.status = 'complete'
+    ORDER BY js.completed_at DESC
+  `
+  return rows.map(row => {
+    const model = getModel(row.modelId)
+    const gpu   = getGpu(row.gpuId)
+    return {
+      jobId:             row.jobId,
+      modelId:           row.modelId,
+      modelName:         model?.displayName ?? row.modelId.split('/').pop() ?? row.modelId,
+      engine:            row.engine as EngineType,
+      quantisation:      row.quantisation as QuantType | null,
+      gpuId:             row.gpuId,
+      gpuName:           gpu?.name ?? row.gpuId,
+      concurrency:       row.concurrency,
+      concurrencyLevels: row.concurrencyLevels ? row.concurrencyLevels.split(' ').map(Number) : null,
+      requestCount:      row.requestCount,
+      submittedBy:       row.submittedBy,
+      completedAt:       row.completedAt.toISOString(),
+    }
+  })
+}
+
+export async function getJobDetail(id: string): Promise<JobDetail | null> {
+  const rows = await sql<JobDetailRow[]>`
+    SELECT
+      j.job_id                AS id,
+      j.model_id              AS "modelId",
+      j.engine,
+      j.quantisation,
+      j.gpu_type              AS "gpuId",
+      j.submitted_by          AS "submittedBy",
+      j.created_at            AS "submittedAt",
+      COALESCE(js.status, 'queued') AS status,
+      js.error,
+      js.completed_at         AS "completedAt",
+      j.dtype,
+      j.kv_cache_dtype        AS "kvCacheDtype",
+      j.max_model_len         AS "maxModelLen",
+      j.gpu_memory_util       AS "gpuMemoryUtil",
+      j.max_batch_size        AS "maxBatchSize",
+      j.prefix_caching        AS "prefixCaching",
+      j.chunked_prefill       AS "chunkedPrefill",
+      j.flash_attention       AS "flashAttention",
+      j.batch_scheduler       AS "batchScheduler",
+      j.cuda_graphs           AS "cudaGraphs",
+      j.concurrency,
+      j.concurrency_levels    AS "concurrencyLevels",
+      j.input_tokens_mean     AS "inputTokensMean",
+      j.output_tokens_mean    AS "outputTokensMean",
+      j.request_count         AS "requestCount",
+      j.streaming,
+      j.measurement_window    AS "measurementWindow",
+      j.isl_distribution      AS "islDistribution",
+      j.backend
+    FROM jobs j
+    LEFT JOIN job_status js ON js.job_id = j.job_id
+    WHERE j.job_id = ${id}
+  `
+  return rows[0] ? rowToJobDetail(rows[0]) : null
+}
