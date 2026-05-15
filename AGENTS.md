@@ -275,8 +275,13 @@ kubectl create secret generic web-secrets \
   --from-literal=auth-secret=<RANDOM_HEX> \
   --namespace default
 
-# Postgres connection URL for the web app and job controller
+# Postgres credentials for the postgres pod + connection URL for web/job-controller.
+# All three keys are required:
+#   - username / password — consumed by postgres.yaml as POSTGRES_USER / POSTGRES_PASSWORD
+#   - database-url        — consumed by web.yaml and job-controller.yaml
 kubectl create secret generic postgres-secrets \
+  --from-literal=username=akabench \
+  --from-literal=password='<PW>' \
   --from-literal=database-url='postgres://akabench:<PW>@postgres:5432/akabench' \
   --namespace default
 ```

@@ -306,9 +306,15 @@ won't reach the cluster and the cert won't issue.
 psql "$DATABASE_URL" -f db/schema.sql
 psql "$DATABASE_URL" -f db/migrations/0001_seed_models.sql
 
-# Secrets — populate once
+# Secrets — populate once.
+# postgres-secrets must carry all three keys: `username` and `password` are
+# read by the postgres Deployment (POSTGRES_USER / POSTGRES_PASSWORD env
+# vars); `database-url` is read by web + job-controller. Keep them in sync.
 kubectl create secret generic postgres-secrets \
-  --from-literal=database-url="$DATABASE_URL" -n default
+  --from-literal=username=akabench \
+  --from-literal=password="$PG_PASS" \
+  --from-literal=database-url="postgres://akabench:$PG_PASS@postgres:5432/akabench" \
+  -n default
 kubectl create secret generic web-secrets \
   --from-literal=auth-secret="$(openssl rand -base64 48)" -n default
 kubectl create secret generic object-storage \

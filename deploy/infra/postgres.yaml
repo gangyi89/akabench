@@ -1,16 +1,11 @@
-# WARNING: change the password below before applying to any real environment.
-# Do NOT commit real credentials to git — use a secrets manager or Sealed Secrets
-# in production and keep this file as a template only.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-secrets
-  namespace: default
-type: Opaque
-stringData:
-  username: akabench
-  password: change-me-before-deploying
----
+# NOTE: the `postgres-secrets` Secret is operator-managed (created out of
+# band via `kubectl create secret generic ...`) — see README "Secrets".
+# It must carry THREE keys:
+#   username      — read by this Deployment for POSTGRES_USER
+#   password      — read by this Deployment for POSTGRES_PASSWORD
+#   database-url  — read by web.yaml / job-controller.yaml at runtime
+# Do not redefine the Secret here; doing so would let `kubectl apply -f`
+# silently overwrite the operator-created credentials.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
