@@ -254,6 +254,7 @@ export type ReportListItem = {
 export interface SearchResultItem {
   hfRepoId: string
   displayName: string
+  family: string
   paramCountB: number
   vramFp16Gb: number      // derived: paramCountB * 2
   tags: string[]          // derived from gated/vendor/quants/ngcContainerTag

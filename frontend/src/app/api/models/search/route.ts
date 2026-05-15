@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
   const results: SearchResultItem[] = models.map((m) => ({
     hfRepoId:      m.hfRepoId,
     displayName:   m.displayName,
+    family:        m.family,
     paramCountB:   m.paramCountB,
     vramFp16Gb:    vramFp16Gb(m),
     tags:          tagsFor(m),

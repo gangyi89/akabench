@@ -45,9 +45,12 @@ export async function searchModels(query: string): Promise<EnrichedModel[]> {
         WHERE LOWER(hf_repo_id) LIKE ${'%' + q + '%'}
            OR LOWER(family)     LIKE ${'%' + q + '%'}
            OR LOWER(vendor)     LIKE ${'%' + q + '%'}
-        ORDER BY hf_repo_id
+        ORDER BY family ASC, param_count_b ASC, display_name ASC
       `
-    : await sql<ModelRow[]>`SELECT * FROM models ORDER BY hf_repo_id`
+    : await sql<ModelRow[]>`
+        SELECT * FROM models
+        ORDER BY family ASC, param_count_b ASC, display_name ASC
+      `
   return rows.map(rowToModel)
 }
 

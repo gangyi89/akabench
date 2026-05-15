@@ -40,6 +40,8 @@ export default function ModelPanel() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResultItem[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [availableFamilies, setAvailableFamilies] = useState<string[]>([])
+  const [selectedFamily, setSelectedFamily] = useState<string>('')
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -81,10 +83,20 @@ export default function ModelPanel() {
       const res = await fetch(`/api/models/search?q=${encodeURIComponent(q)}`)
       const data = await res.json() as { results: SearchResultItem[] }
       setResults(data.results)
+      // Seed the family dropdown once from the initial (unfiltered) fetch so
+      // its options don't shrink as the user types in the search box.
+      setAvailableFamilies(prev => {
+        if (prev.length > 0) return prev
+        return [...new Set(data.results.map(r => r.family))].sort()
+      })
     } finally {
       setIsSearching(false)
     }
   }
+
+  const visibleResults = selectedFamily
+    ? results.filter(r => r.family === selectedFamily)
+    : results
 
   const fetchDerive = useCallback(async (modelId: string, gpuId: string | null) => {
     setIsDeriving(true)
@@ -126,59 +138,79 @@ export default function ModelPanel() {
       </div>
 
       <div className="flex flex-col gap-3 p-[18px] flex-1 min-h-0">
-        {/* Search */}
-        <div className="relative">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            width="13" height="13" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{ color: 'var(--aka-gray-400)' }}
-          >
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            autoFocus
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search models by name or family…"
-            className="w-full rounded-md pl-8 pr-8 py-2 outline-none transition-colors"
-            style={{
-              fontSize: '14px',
-              border: '1px solid var(--aka-blue)',
-              background: '#fff',
-              color: 'var(--aka-gray-700)',
-              boxShadow: '0 0 0 3px rgba(0,155,222,0.1)',
-            }}
-            onFocus={e => {
-              e.currentTarget.style.borderColor = 'var(--aka-blue)'
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,155,222,0.1)'
-            }}
-            onBlur={e => {
-              e.currentTarget.style.borderColor = 'var(--aka-gray-300)'
-              e.currentTarget.style.boxShadow = 'none'
-              e.currentTarget.style.background = 'var(--aka-gray-50)'
-            }}
-          />
-          {isSearching && (
+        {/* Search + family filter */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
             <svg
-              className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin"
+              className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
               width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
               style={{ color: 'var(--aka-gray-400)' }}
             >
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-          )}
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search models by name…"
+              className="w-full rounded-md pl-8 pr-8 py-2 outline-none transition-colors"
+              style={{
+                fontSize: '14px',
+                border: '1px solid var(--aka-blue)',
+                background: '#fff',
+                color: 'var(--aka-gray-700)',
+                boxShadow: '0 0 0 3px rgba(0,155,222,0.1)',
+              }}
+              onFocus={e => {
+                e.currentTarget.style.borderColor = 'var(--aka-blue)'
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,155,222,0.1)'
+              }}
+              onBlur={e => {
+                e.currentTarget.style.borderColor = 'var(--aka-gray-300)'
+                e.currentTarget.style.boxShadow = 'none'
+                e.currentTarget.style.background = 'var(--aka-gray-50)'
+              }}
+            />
+            {isSearching && (
+              <svg
+                className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin"
+                width="13" height="13" viewBox="0 0 24 24" fill="none"
+                style={{ color: 'var(--aka-gray-400)' }}
+              >
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
+          </div>
+          <select
+            value={selectedFamily}
+            onChange={e => setSelectedFamily(e.target.value)}
+            className="rounded-md px-2 py-2 outline-none cursor-pointer"
+            style={{
+              fontSize: '13px',
+              border: '1px solid var(--aka-gray-300)',
+              background: selectedFamily ? 'var(--aka-light)' : '#fff',
+              color: 'var(--aka-gray-700)',
+              minWidth: '120px',
+            }}
+            title="Filter by model series"
+          >
+            <option value="">All series</option>
+            {availableFamilies.map(f => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
         </div>
 
         {/* Results */}
         <div className="flex flex-col gap-1.5 overflow-y-auto pr-0.5 flex-1 min-h-0 basis-0">
-          {results.length === 0 && !isSearching && (
+          {visibleResults.length === 0 && !isSearching && (
             <p className="py-4 text-center" style={{ fontSize: '12px', color: 'var(--aka-gray-400)' }}>
               No models found
             </p>
           )}
-          {results.map((model) => {
+          {visibleResults.map((model) => {
             const isSelected = model.hfRepoId === selectedModelId
             return (
               <button
