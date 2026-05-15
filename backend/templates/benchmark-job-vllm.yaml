@@ -13,13 +13,9 @@
 #
 #   aiperf        (main container)
 #                 Waits for the vLLM /health endpoint, then drives the full
-#                 AIPerf benchmark sweep and writes results JSON to the
-#                 shared "results" emptyDir volume.
-#
-#   results-collector (main container)
-#                 Tails the results directory and POSTs structured metrics
-#                 back to the internal API server once the benchmark
-#                 writes BENCHMARK_COMPLETE to the results directory.
+#                 AIPerf benchmark sweep, writes results JSON to the shared
+#                 "results" emptyDir volume, and uploads the artefacts +
+#                 DCGM metrics to Linode Object Storage itself.
 #
 # Prerequisites
 # -------------
@@ -86,8 +82,7 @@ spec:
           {%- else %}
           emptyDir: {}
           {%- endif %}
-        # Scratch space for AIPerf output JSON, shared with the
-        # results-collector container.
+        # Scratch space for AIPerf output JSON before upload to Object Storage.
         - name: results
           emptyDir: {}
 

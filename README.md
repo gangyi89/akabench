@@ -96,12 +96,10 @@ carries only the `job_id` (the consumer reads parameters from the DB).
 | `NATS 2.10`          | JetStream                      | ordering / delivery only | — |
 | `Linode Object Storage` | S3-compatible              | aiperf.json + dcgm.json results | — |
 
-Per-job pods are short-lived: `<engine>-server` (vLLM / SGLang / TRT-LLM)
-serves on `localhost:8000`; the `aiperf` container drives the benchmark, runs
-DCGM collection, and uploads results to object storage itself — no separate
-collector container in the vLLM/SGLang path. (TRT-LLM Jobs also start a
-`results-collector` sidecar that POSTs metrics back to the job_controller —
-see [backend/collector](backend/collector).)
+Per-job pods are short-lived and have two containers: `<engine>-server` (vLLM
+or SGLang) serves on `localhost:8000`, and the `aiperf` container drives the
+benchmark, runs DCGM collection, and uploads `aiperf.json` + `dcgm.json` to
+object storage itself.
 
 ---
 
@@ -124,7 +122,6 @@ akabench/
 │
 ├── backend/
 │   ├── job_controller/        ← FastAPI + asyncpg + kubernetes client
-│   ├── collector/             ← results-collector sidecar (separate image)
 │   ├── templates/             ← Jinja2 K8s Job manifests per engine
 │   └── Dockerfile             ← python:3.12-slim, ENTRYPOINT job_controller.main
 │
@@ -178,9 +175,9 @@ python3 -m venv .venv
 .venv/bin/python -m job_controller.main   # http://localhost:8080
 ```
 
-The job_controller HTTP listener is for the in-cluster results-collector
-callback; you do not need it running for the wizard to be usable, but jobs
-will stay in `queued` state without it.
+The job_controller HTTP listener on `:8080` is currently dormant (no
+in-cluster caller). The wizard works without it, but jobs stay in `queued`
+state until the NATS consumer is running.
 
 ### Required environment variables
 
@@ -211,7 +208,7 @@ MODEL_CACHE_PVC=model-cache-pvc      # optional
 
 ## Build & deploy
 
-The repo ships a `Makefile` that builds and pushes all three images, tagged
+The repo ships a `Makefile` that builds and pushes the two app images, tagged
 with the short git SHA. Override `REGISTRY` via env var.
 
 ### One-shot release
@@ -222,10 +219,9 @@ make release
 
 Equivalent to: `make build` → `make push` → `kubectl set image deployment/job-controller …` + `kubectl set image deployment/web …`.
 
-This builds three images:
+This builds two images:
 
 - `…/job-controller:<sha>` (Python)
-- `…/collector:<sha>`      (Python sidecar)
 - `…/web:<sha>`            (Next.js)
 
 …pushes them to the registry, and rolls the live Deployments to the new tag.
@@ -234,11 +230,10 @@ This builds three images:
 
 | Command                  | What it does                                             |
 |--------------------------|----------------------------------------------------------|
-| `make build`             | Build all three images, no push                          |
+| `make build`             | Build both images, no push                               |
 | `make build-web`         | Build just the frontend                                  |
 | `make build-job-controller` | Build just the job_controller                         |
-| `make build-collector`   | Build just the collector sidecar                         |
-| `make push`              | Push all three to the registry                           |
+| `make push`              | Push both to the registry                                |
 | `make images`            | Print the tags that `release` will produce               |
 
 ### Cluster prerequisites (one-time, per cluster)
@@ -274,8 +269,9 @@ helm upgrade --install cert-manager cert-manager \
 
 #### 3. NVIDIA GPU Operator (drivers + device plugin + DCGM)
 
-Benchmark Jobs request `nvidia.com/gpu` resources and the collector reads
-`DCGM_FI_DEV_GPU_UTIL` / `DCGM_FI_DEV_FB_USED`. The GPU Operator bundles the
+Benchmark Jobs request `nvidia.com/gpu` resources and the `aiperf` container
+polls the DCGM Exporter for `DCGM_FI_DEV_GPU_UTIL` / `DCGM_FI_DEV_FB_USED`.
+The GPU Operator bundles the
 NVIDIA driver (≥ 535), container toolkit, device plugin, DCGM Exporter, and
 MIG manager in one release. Install on the GPU node pool only.
 

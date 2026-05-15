@@ -40,8 +40,8 @@ spec:
                 secretKeyRef:
                   name: web-secrets
                   key: auth-secret
-            # Linode Object Storage (S3-compatible) — same bucket the
-            # results-collector pod writes aiperf.json / dcgm.json into.
+            # Linode Object Storage (S3-compatible) — same bucket the aiperf
+            # container writes aiperf.json / dcgm.json into.
             - name: S3_ENDPOINT_URL
               valueFrom:
                 secretKeyRef:

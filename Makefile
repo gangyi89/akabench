@@ -2,7 +2,6 @@ REGISTRY   ?= registry.akamai.internal/akabench
 SHA        := $(shell git rev-parse --short HEAD)
 
 JOB_CONTROLLER_IMAGE := $(REGISTRY)/job-controller:$(SHA)
-COLLECTOR_IMAGE      := $(REGISTRY)/collector:$(SHA)
 WEB_IMAGE            := $(REGISTRY)/web:$(SHA)
 
 # ---------------------------------------------------------------------------
@@ -10,7 +9,7 @@ WEB_IMAGE            := $(REGISTRY)/web:$(SHA)
 # ---------------------------------------------------------------------------
 
 .PHONY: build
-build: build-job-controller build-collector build-web
+build: build-job-controller build-web
 
 .PHONY: build-job-controller
 build-job-controller:
@@ -18,13 +17,6 @@ build-job-controller:
 		--file backend/Dockerfile \
 		--tag $(JOB_CONTROLLER_IMAGE) \
 		.
-
-.PHONY: build-collector
-build-collector:
-	docker build \
-		--file backend/collector/Dockerfile \
-		--tag $(COLLECTOR_IMAGE) \
-		backend/collector
 
 .PHONY: build-web
 build-web:
@@ -38,15 +30,11 @@ build-web:
 # ---------------------------------------------------------------------------
 
 .PHONY: push
-push: push-job-controller push-collector push-web
+push: push-job-controller push-web
 
 .PHONY: push-job-controller
 push-job-controller:
 	docker push $(JOB_CONTROLLER_IMAGE)
-
-.PHONY: push-collector
-push-collector:
-	docker push $(COLLECTOR_IMAGE)
 
 .PHONY: push-web
 push-web:
@@ -94,5 +82,4 @@ deploy: deploy-infra deploy-app
 .PHONY: images
 images:
 	@echo "job-controller : $(JOB_CONTROLLER_IMAGE)"
-	@echo "collector      : $(COLLECTOR_IMAGE)"
 	@echo "web            : $(WEB_IMAGE)"

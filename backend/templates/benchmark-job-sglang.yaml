@@ -93,8 +93,7 @@ spec:
           {%- else %}
           emptyDir: {}
           {%- endif %}
-        # Scratch space for AIPerf output JSON, shared with the
-        # results-collector container.
+        # Scratch space for AIPerf output JSON before upload to Object Storage.
         - name: results
           emptyDir: {}
 

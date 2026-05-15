@@ -79,7 +79,7 @@ akabench/
 │   │   ├── nats_client.py     # JetStream singleton (JOBS + JOBS_DLQ streams)
 │   │   ├── k8s_client.py      # BatchV1Api wrapper — crash-loop detection, log fetch, fail_job
 │   │   ├── db.py              # asyncpg — reads jobs, writes job_status + job_dlq
-│   │   └── collector_api.py   # FastAPI — receives results POST from pod
+│   │   └── collector_api.py   # FastAPI app on :8080 — currently dormant (no in-cluster caller)
 │   ├── templates/
 │   │   ├── benchmark-job-vllm.yaml          # Jinja2 — vLLM engine path
 │   │   ├── benchmark-job-vllm-test.yaml     # Static test manifest
@@ -161,22 +161,20 @@ Python job controller  (backend/job_controller/scheduler.py)
   │  Reads full BenchmarkRequest from Postgres via db.get_job(job_id)
   │  renderer.py derives infra values from the request:
   │    ├─ memory_request / memory_limit  (from gpu_type)
-  │    ├─ engine_cache_key               (TRT-LLM binary cache path)
   │    ├─ input_tokens_stddev            (from isl_distribution)
   │    └─ MODEL_CACHE_PVC               (from env var)
   │
   ├─→ [on K8s submit failure] → job_dlq (Postgres) + JOBS_DLQ (NATS)
   │
   ▼
-kubectl apply → K8s Job in gpu-benchmarks namespace
-  │  Multi-container pod: engine sidecar + aiperf + results-collector
-  │
-  ├─→ [on job execution failure] → job_dlq (Postgres) + JOBS_DLQ (NATS)
+kubectl apply → K8s Job in default namespace
+  │  Two-container pod: engine sidecar + aiperf
   │
   ▼
-results-collector  POST /jobs/{job_id}/results  (collector_api.py)
-  │  Updates job_status table in Postgres
-  └─→ publishes to NATS subject 'results'
+aiperf  uploads aiperf.json + dcgm.json to Linode Object Storage
+  │
+  └─→ controller polls K8s Job status, writes complete/failed to job_status
+      on failure: job_dlq (Postgres) + JOBS_DLQ (NATS)
 ```
 
 ### Architecture — The Two Worlds
@@ -189,13 +187,12 @@ Data flow rule: **all derived UI state comes from `/api/models/:id/derive`**. Pa
 
 #### World 2: Python job controller + Kubernetes (`backend/` + `deploy/`)
 
-The job controller consumes from NATS, renders the Jinja2 K8s Job manifest, submits it to the cluster, and polls status back to Postgres. Each K8s Job provisions a multi-container pod:
+The job controller consumes from NATS, renders the Jinja2 K8s Job manifest, submits it to the cluster, and polls status back to Postgres. Each K8s Job provisions a two-container pod:
 
 1. **Engine container** (native sidecar, `restartPolicy: Always`) — `vllm-server` or `sglang-server`, starts the inference server on port 8000, stays alive for the lifetime of the Job
 2. **aiperf container** — waits for `/health`, drives the benchmark, writes results JSON to a shared volume, and uploads results + DCGM metrics to Linode Object Storage
-3. **results-collector container** — POSTs structured metrics back to the collector API
 
-The controller also detects engine container crash-loops (`restartCount >= 5`) and fails the Job via `activeDeadlineSeconds: 1`, capturing the last 60 lines of engine logs into `job_status.error`. See `backend/AGENTS.md` for details.
+The controller polls K8s for terminal Job state and writes it to `job_status`. It also detects engine container crash-loops (`restartCount >= 5`) and fails the Job via `activeDeadlineSeconds: 1`, capturing the last 60 lines of engine logs into `job_status.error`. See `backend/AGENTS.md` for details.
 
 ---
 
