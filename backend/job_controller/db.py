@@ -22,13 +22,20 @@ async def close() -> None:
 # job_status — job controller is the sole writer
 # ---------------------------------------------------------------------------
 
-async def insert_job_status(job_id: str, k8s_job_name: str, engine: str) -> None:
+async def insert_job_status(
+    job_id: str,
+    k8s_job_name: str,
+    engine: str,
+    status: str = "pending",
+    error: Optional[str] = None,
+    completed_at: Optional[datetime] = None,
+) -> None:
     await _pool.execute(
         """
-        INSERT INTO job_status (job_id, k8s_job_name, engine, status)
-        VALUES ($1, $2, $3, 'pending')
+        INSERT INTO job_status (job_id, k8s_job_name, engine, status, error, completed_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
         """,
-        job_id, k8s_job_name, engine,
+        job_id, k8s_job_name, engine, status, error, completed_at,
     )
 
 

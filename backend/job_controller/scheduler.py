@@ -94,6 +94,14 @@ async def handle_request(msg) -> None:
     except Exception as exc:
         error_msg = f"Failed to submit K8s job: {exc}"
         log.error("Failed to submit job %s: %s", req.job_id, exc)
+        await db.insert_job_status(
+            job_id=req.job_id,
+            k8s_job_name=k8s_job_name,
+            engine=req.engine,
+            status="failed",
+            error=error_msg,
+            completed_at=datetime.now(tz=timezone.utc),
+        )
         await db.insert_dlq(req.job_id, error_msg)
         await nats_client.publish_dlq(req.job_id, error_msg)
         await msg.ack()

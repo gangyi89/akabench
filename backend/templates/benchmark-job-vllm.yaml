@@ -30,7 +30,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: benchmark-{{ job_id }}-vllm
-  namespace: default
+  namespace: {{ namespace }}
   labels:
     app: gpu-benchmark
     job-id: "{{ job_id }}"

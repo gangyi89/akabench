@@ -41,7 +41,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: benchmark-{{ job_id }}-sglang
-  namespace: default
+  namespace: {{ namespace }}
   labels:
     app: gpu-benchmark
     job-id: "{{ job_id }}"

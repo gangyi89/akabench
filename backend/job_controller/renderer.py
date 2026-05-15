@@ -53,6 +53,10 @@ _VLLM_QUANT_MAP: dict[str, str] = {
 # model_cache_pvc: None = emptyDir (dev), set to PVC name in prod.
 _MODEL_CACHE_PVC: str | None = os.environ.get("MODEL_CACHE_PVC")
 
+# Namespace where benchmark Jobs are submitted. Must match k8s_client._NAMESPACE
+# or the API server rejects the request with HTTP 400.
+_NAMESPACE: str = os.environ.get("K8S_NAMESPACE", "default")
+
 # K8s memory budgets per GPU type (engine container request/limit).
 _GPU_MEMORY: dict[str, dict[str, str]] = {
     "rtx-4000-ada":  {"request": "8Gi",  "limit": "24Gi"},
@@ -128,5 +132,6 @@ def render_manifest(req: BenchmarkRequest, engine: str = "vllm") -> dict:
         memory_request=mem["request"],
         memory_limit=mem["limit"],
         model_cache_pvc=_MODEL_CACHE_PVC,
+        namespace=_NAMESPACE,
     )
     return yaml.safe_load(rendered)
