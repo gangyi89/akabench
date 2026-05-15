@@ -7,10 +7,18 @@ declare global {
   var __sql: ReturnType<typeof postgres> | undefined
 }
 
-function createSql(): ReturnType<typeof postgres> {
+// Lazy — initialised on first use. Eager construction breaks `next build`,
+// which imports every API route during "Collecting page data" and would
+// throw here when DATABASE_URL is unset in the build environment.
+function getSql(): ReturnType<typeof postgres> {
+  if (globalThis.__sql) return globalThis.__sql
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is not set')
-  return postgres(url, { max: 5 })
+  globalThis.__sql = postgres(url, { max: 5 })
+  return globalThis.__sql
 }
 
-export const sql = globalThis.__sql ?? (globalThis.__sql = createSql())
+export const sql = new Proxy((() => {}) as unknown as ReturnType<typeof postgres>, {
+  apply: (_t, _thisArg, args) => (getSql() as unknown as (...a: unknown[]) => unknown)(...args),
+  get:   (_t, prop) => (getSql() as unknown as Record<string | symbol, unknown>)[prop],
+})
