@@ -223,6 +223,33 @@ The quant type list lives in `frontend/src/lib/catalogue/types.ts`. Add new form
 
 ---
 
+## Cluster Safety — `default` is Production
+
+The shared Linode cluster runs production (`default` namespace) and the
+operator's local development workload side by side so they can share the
+GPU node pool. This means:
+
+- **`default` is the production namespace.** Never edit, delete, restart,
+  or run destructive `kubectl` against any resource in `default` — Jobs,
+  Pods, Deployments, Secrets, PVCs, ConfigMaps, the Gateway, the
+  Certificate. No exceptions for "cleanup". The only commands that
+  should ever touch `default` are read-only inspections (`kubectl get`,
+  `describe`, `logs`).
+- **All development goes into `akabench-dev`.** When working from a local
+  machine, the job controller submits Jobs into `akabench-dev` (set
+  `K8S_NAMESPACE=akabench-dev` in `backend/.env`). Secrets, PVCs and any
+  test resources for dev work belong in `akabench-dev`.
+- **If you need to delete or restart something** — confirm the namespace
+  with the operator first. Default to `-n akabench-dev` on every
+  `kubectl` invocation when in doubt; never omit `-n` on destructive
+  commands, since `kubectl` falls back to the current context's default
+  namespace (which on this cluster *is* `default`).
+
+This guard exists because there is no separate prod cluster — a stray
+`kubectl delete` in `default` takes down the live portal.
+
+---
+
 ## Secrets — Required Before Any Real Job Runs
 
 All K8s secrets must exist in the `default` namespace (the benchmark job namespace):
