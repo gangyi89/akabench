@@ -1,5 +1,5 @@
 import { sql } from '@/lib/db'
-import { getModel, getGpu } from '@/lib/catalogue/db'
+import { getGpu } from '@/lib/catalogue/db'
 import type { Job, JobDetail, JobSubmitRequest, ReportListItem, EngineType, QuantType } from '@/lib/catalogue/types'
 
 export async function insertJob(job: Job, params: JobSubmitRequest, dtype: string): Promise<void> {
@@ -30,7 +30,7 @@ export async function insertJob(job: Job, params: JobSubmitRequest, dtype: strin
       ${params.inputTokensMean  ?? 512},
       ${params.outputTokensMean ?? 256}, ${params.requestCount     ?? 100},
       ${params.streaming        ?? true},
-      ${params.measurementWindow ?? 120}, ${params.islDistribution ?? 'normal-25'}, ${params.backend ?? 'openai'},
+      ${params.measurementWindow ?? 1800}, ${params.islDistribution ?? 'normal-25'}, ${params.backend ?? 'openai'},
       ${params.maxModelLen       ?? 2048}, ${params.gpuMemoryUtil  ?? 0.90},
       ${params.maxBatchSize      ?? 64},
       ${params.prefixCaching     ?? true}, ${params.chunkedPrefill ?? true},
@@ -43,6 +43,7 @@ export async function insertJob(job: Job, params: JobSubmitRequest, dtype: strin
 type JobRow = {
   id: string
   modelId: string
+  modelName: string | null
   engine: string
   quantisation: string | null
   gpuId: string
@@ -55,12 +56,11 @@ type JobRow = {
 }
 
 function rowToJob(row: JobRow): Job {
-  const model = getModel(row.modelId)
-  const gpu   = getGpu(row.gpuId)
+  const gpu = getGpu(row.gpuId)
   return {
     id:                row.id,
     modelId:           row.modelId,
-    modelName:         model?.displayName ?? row.modelId.split('/').pop() ?? row.modelId,
+    modelName:         row.modelName ?? row.modelId.split('/').pop() ?? row.modelId,
     engine:            row.engine as Job['engine'],
     quantisation:      row.quantisation as Job['quantisation'],
     gpuId:             row.gpuId,
@@ -78,6 +78,7 @@ const JOB_SELECT = sql`
   SELECT
     j.job_id              AS id,
     j.model_id            AS "modelId",
+    m.display_name        AS "modelName",
     j.engine,
     j.quantisation,
     j.gpu_type            AS "gpuId",
@@ -89,6 +90,7 @@ const JOB_SELECT = sql`
     js.completed_at       AS "completedAt"
   FROM jobs j
   LEFT JOIN job_status js ON js.job_id = j.job_id
+  LEFT JOIN models     m  ON m.hf_repo_id = j.model_id
 `
 
 export async function getJob(id: string): Promise<Job | null> {
@@ -159,6 +161,7 @@ function rowToJobDetail(row: JobDetailRow): JobDetail {
 type ReportListRow = {
   jobId:            string
   modelId:          string
+  modelName:        string | null
   engine:           string
   quantisation:     string | null
   gpuId:            string
@@ -174,6 +177,7 @@ export async function listCompletedJobs(): Promise<ReportListItem[]> {
     SELECT
       j.job_id              AS "jobId",
       j.model_id            AS "modelId",
+      m.display_name        AS "modelName",
       j.engine,
       j.quantisation,
       j.gpu_type            AS "gpuId",
@@ -184,16 +188,16 @@ export async function listCompletedJobs(): Promise<ReportListItem[]> {
       j.request_count       AS "requestCount"
     FROM jobs j
     JOIN job_status js ON js.job_id = j.job_id
+    LEFT JOIN models m ON m.hf_repo_id = j.model_id
     WHERE js.status = 'complete'
     ORDER BY js.completed_at DESC
   `
   return rows.map(row => {
-    const model = getModel(row.modelId)
-    const gpu   = getGpu(row.gpuId)
+    const gpu = getGpu(row.gpuId)
     return {
       jobId:             row.jobId,
       modelId:           row.modelId,
-      modelName:         model?.displayName ?? row.modelId.split('/').pop() ?? row.modelId,
+      modelName:         row.modelName ?? row.modelId.split('/').pop() ?? row.modelId,
       engine:            row.engine as EngineType,
       quantisation:      row.quantisation as QuantType | null,
       gpuId:             row.gpuId,
@@ -212,6 +216,7 @@ export async function getJobDetail(id: string): Promise<JobDetail | null> {
     SELECT
       j.job_id                AS id,
       j.model_id              AS "modelId",
+      m.display_name          AS "modelName",
       j.engine,
       j.quantisation,
       j.gpu_type              AS "gpuId",
@@ -241,6 +246,7 @@ export async function getJobDetail(id: string): Promise<JobDetail | null> {
       j.backend
     FROM jobs j
     LEFT JOIN job_status js ON js.job_id = j.job_id
+    LEFT JOIN models     m  ON m.hf_repo_id = j.model_id
     WHERE j.job_id = ${id}
   `
   return rows[0] ? rowToJobDetail(rows[0]) : null

@@ -14,7 +14,7 @@ _core:  client.CoreV1Api  | None = None
 _NAMESPACE = os.environ.get("K8S_NAMESPACE", "default")
 
 # Engine container name per engine type.
-_ENGINE_CONTAINER = {"vllm": "vllm-server", "trtllm": "trtllm-server", "sglang": "sglang-server"}
+_ENGINE_CONTAINER = {"vllm": "vllm-server", "sglang": "sglang-server"}
 
 # Restart count threshold before we declare the job failed.
 CRASH_THRESHOLD = 5

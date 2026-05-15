@@ -4,14 +4,21 @@ import { getModel, getGpu } from '@/lib/catalogue/db'
 import { insertJob, listJobs } from '@/lib/jobs/store'
 import { validateJobRequest } from '@/lib/jobs/validation'
 import { publishBenchmarkRequest } from '@/lib/jobs/nats'
+import { getSession, unauthorizedResponse } from '@/lib/auth/session'
 import type { Job, JobSubmitRequest, JobSubmitResponse } from '@/lib/catalogue/types'
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const session = await getSession(req)
+  if (!session) return unauthorizedResponse()
+
   const jobs = await listJobs()
   return NextResponse.json({ jobs })
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const session = await getSession(req)
+  if (!session) return unauthorizedResponse()
+
   let body: JobSubmitRequest
   try {
     body = await req.json()
@@ -28,7 +35,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Resolve display names from catalogue
-  const model = getModel(body.modelId)
+  const model = await getModel(body.modelId)
   if (!model) {
     return NextResponse.json({ error: 'Model not found', code: 'MODEL_NOT_FOUND' }, { status: 404 })
   }
@@ -36,6 +43,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const gpu = getGpu(body.gpuId)
   if (!gpu) {
     return NextResponse.json({ error: 'GPU not found', code: 'GPU_NOT_FOUND' }, { status: 404 })
+  }
+  if (!gpu.available) {
+    return NextResponse.json(
+      { error: `${gpu.name} is not currently provisioned`, code: 'GPU_UNAVAILABLE' },
+      { status: 422 },
+    )
   }
 
   // Compatibility validation — authoritative gate
@@ -45,9 +58,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const jobId = randomUUID()
-  const rawSubmittedBy = req.headers.get('x-submitted-by') ?? ''
-  // Sanitize: strip whitespace, cap length, fall back to 'anonymous'.
-  const submittedBy = rawSubmittedBy.trim().slice(0, 128) || 'anonymous'
+  // Identity is taken from the HMAC-verified session cookie, never from a
+  // client-supplied header — so the recorded submitter cannot be spoofed.
+  const submittedBy = session.username
   const submittedAt = new Date().toISOString()
 
   // Derive dtype from quantisation — not user-submitted.

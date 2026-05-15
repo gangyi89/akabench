@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { getJob } from '@/lib/jobs/store'
+import { getSession, unauthorizedResponse } from '@/lib/auth/session'
 
 // Presigned URLs expire after 60 seconds — effectively one-time use.
 const EXPIRES_IN = 60
@@ -40,6 +41,9 @@ export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
+  const session = await getSession(req)
+  if (!session) return unauthorizedResponse()
+
   const { id } = await ctx.params
   const file = req.nextUrl.searchParams.get('file') ?? ''
 

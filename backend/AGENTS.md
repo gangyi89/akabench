@@ -5,11 +5,14 @@
 ## Overview
 
 The backend consists of a Python **job controller** that:
-1. Subscribes to NATS JetStream for incoming benchmark requests
-2. Renders a Jinja2 K8s Job manifest
-3. Submits the Job to Kubernetes via the Python `kubernetes` client
-4. Polls the Job status and writes progress to Postgres (`job_status` table)
-5. Publishes the final result back to NATS
+1. Subscribes to NATS JetStream for incoming benchmark requests (subject `jobs`, payload `{ job_id }` only)
+2. Reads the full `BenchmarkRequest` back from Postgres
+3. Renders a Jinja2 K8s Job manifest (vLLM or SGLang)
+4. Submits the Job to Kubernetes via the Python `kubernetes` client
+5. Polls the Job status, watches for engine crash-loops, and writes progress to Postgres (`job_status` table)
+6. Publishes the final result back to NATS, and DLQs unrecoverable failures to `jobs.dlq` + `job_dlq`
+
+**Executable engines:** `vllm`, `sglang`. TRT-LLM is intentionally not in `_ALLOWED_ENGINES` (`models.py`) and has no template — any TRT-LLM request will be rejected at parse time and DLQ'd.
 
 ---
 
@@ -27,21 +30,24 @@ backend/
 ├── job_controller/
 │   ├── main.py                # Entry point — wires up all components and runs uvicorn
 │   ├── models.py              # Pydantic models: BenchmarkRequest, BenchmarkResult, CollectorPayload
-│   ├── scheduler.py           # NATS message handler, K8s job submitter, status watcher
-│   ├── nats_client.py         # NATS JetStream singleton (connect, publish, subscribe)
-│   ├── k8s_client.py          # Kubernetes BatchV1Api wrapper (create_job, get_job_status)
-│   ├── renderer.py            # Jinja2 template renderer → returns parsed dict for K8s API
-│   ├── db.py                  # asyncpg Postgres client — writes to job_status table only
+│   ├── scheduler.py           # NATS message handler, K8s job submitter, status watcher, DLQ path
+│   ├── nats_client.py         # NATS JetStream singleton (connect, publish, subscribe) — JOBS + JOBS_DLQ
+│   ├── k8s_client.py          # Kubernetes BatchV1Api wrapper — crash-loop detection, log fetch, fail_job
+│   ├── renderer.py            # Jinja2 template renderer — TEMPLATE_MAP routes engine → file
+│   ├── db.py                  # asyncpg Postgres client — reads jobs, writes job_status + job_dlq
 │   └── collector_api.py       # FastAPI app — receives results POST from results-collector pod
 │
-├── db/
-│   └── schema.sql             # Postgres schema (run once to initialise)
+├── tests/
+│   └── test_renderer.py       # Pytest suite — vLLM coverage only (SGLang gap, see below)
 │
 └── templates/
-    ├── benchmark-job-vllm.yaml       # Jinja2 template — vLLM engine path
-    ├── benchmark-job-vllm-test.yaml  # Static test manifest (no Jinja2 — direct kubectl apply)
-    └── benchmark-job-trtllm.yaml     # Jinja2 template — TRT-LLM engine path
+    ├── benchmark-job-vllm.yaml          # Jinja2 template — vLLM engine path
+    ├── benchmark-job-vllm-test.yaml     # Static test manifest (direct kubectl apply)
+    ├── benchmark-job-sglang.yaml        # Jinja2 template — SGLang engine path
+    └── benchmark-job-sglang-test.yaml   # Static test manifest (direct kubectl apply)
 ```
+
+The Postgres schema and seed migrations live at the repo root (`/db/schema.sql`, `/db/migrations/`), not under `backend/db/`. There is no `backend/db/` directory.
 
 ---
 
@@ -66,8 +72,11 @@ Starts:
 
 ### Initialise the database
 
+Postgres runs in Docker (no local `psql` binary in normal dev setup) — apply the schema and seed migration via `docker exec`:
+
 ```bash
-PGPASSWORD=akabench psql -h localhost -U akabench -d akabench -f db/schema.sql
+docker exec -i local-postgres-1 psql -U akabench -d akabench < db/schema.sql
+docker exec -i local-postgres-1 psql -U akabench -d akabench < db/migrations/0001_seed_models.sql
 ```
 
 ### Python environment
@@ -80,7 +89,7 @@ python3 -m venv .venv
 
 ### Model cache PVC (optional but recommended)
 
-Both job templates (`benchmark-job-vllm.yaml`, `benchmark-job-trtllm.yaml`) mount
+Both job templates (`benchmark-job-vllm.yaml`, `benchmark-job-sglang.yaml`) mount
 the model cache volume from the PVC named by `MODEL_CACHE_PVC`. If the env var is
 absent or empty the templates fall back to an `emptyDir` — models download fresh
 from HuggingFace Hub on every run (slow, and burns egress).
@@ -131,24 +140,29 @@ tail -5 /tmp/job_controller.log   # confirm it started cleanly
 
 ## Database Ownership
 
-Two tables — each has a single writer:
+Four tables — each has a single writer:
 
 | Table | Writer | Contents |
 |---|---|---|
+| `models` | Migration `0001_seed_models.sql` | Catalogue: hf_repo_id, vendor, family, params, quants, NGC tag, gating |
 | `jobs` | Next.js (`POST /api/jobs`) | Full job definition — model, engine, params, submitted_by |
 | `job_status` | Job controller | Execution state — k8s_job_name, status, error, completed_at |
+| `job_dlq` | Job controller | Dead-letter queue — job_id, error, created_at |
 
 `job_status.job_id` is a FK to `jobs.job_id`. A `job_status` row can only be created after Next.js has inserted the corresponding `jobs` row.
 
-Connect to Postgres locally:
+**Schema staleness to be aware of:** `db/schema.sql` still has stale TRT-LLM remnants — the `engine` column comment mentions `trtllm` and the `jobs` table carries `batch_scheduler` and `cuda_graphs` columns that no field on `BenchmarkRequest` writes to. They're harmless (nullable) but should not be relied on.
+
+Connect to Postgres locally (Postgres runs in Docker):
 ```bash
-PGPASSWORD=akabench psql -h localhost -U akabench -d akabench
+docker exec -it local-postgres-1 psql -U akabench -d akabench
 ```
 
 Useful queries:
 ```sql
 SELECT * FROM jobs;
 SELECT * FROM job_status;
+SELECT * FROM job_dlq;
 
 -- Joined view
 SELECT j.job_id, j.model_id, j.engine, j.gpu_type, j.submitted_by,
@@ -176,16 +190,30 @@ The controller subscribes with durable consumer name `job-controller` — messag
 ```
 Next.js POST /api/jobs
   → INSERT INTO jobs
-  → publish to NATS subject 'jobs'
+  → publish { job_id } to NATS subject 'jobs'
       → job controller handle_request()
-          → render_manifest(req, engine)       # Jinja2 → dict
+          → db.get_job(job_id)                 # hydrate BenchmarkRequest from Postgres
+          → render_manifest(req, engine)       # Jinja2 → dict (vllm or sglang)
           → k8s_client.create_job(manifest)    # kubectl apply equivalent
           → db.insert_job_status(...)          # status = 'pending'
           → _spawn_watcher(req, k8s_job_name)
               → polls k8s every 15s
+              → checks engine sidecar restartCount (crash-loop detection)
               → db.update_status(...)          # pending → running → complete/failed
-              → nats_client.publish_result()   # publishes to 'results' subject
+              → on failure: db.insert_dlq(...) + nats_client.publish_dlq(...)
+              → on success: nats_client.publish_result()
 ```
+
+### Renderer dispatch (`renderer.py`)
+
+```python
+TEMPLATE_MAP = {
+    "vllm":   "benchmark-job-vllm.yaml",
+    "sglang": "benchmark-job-sglang.yaml",
+}
+```
+
+Image tags injected via `_VLLM_IMAGE_OVERRIDES` (Gemma 4 → `gemma4`) and the `sglang_image` template var (`lmsysorg/sglang:v0.5.1-cu126`). Quantisation names are mapped via `_VLLM_QUANT_MAP` and `input_tokens_stddev` is derived from `isl_distribution`.
 
 ---
 
@@ -215,7 +243,7 @@ The job controller detects engine container crashes and fails the job automatica
 
 **Flow (implemented in `scheduler.py` `_watch_job` + `k8s_client.py`):**
 
-1. Every poll cycle (15 s), `get_engine_restart_count()` checks the `restartCount` on the engine sidecar (`vllm-server` or `trtllm-server`) via the K8s CoreV1Api.
+1. Every poll cycle (15 s), `get_engine_restart_count()` checks the `restartCount` on the engine sidecar (`vllm-server` or `sglang-server`) via the K8s CoreV1Api.
 2. When `restartCount >= 5`:
    - `get_pod_logs()` fetches the last 60 lines from the engine container (tries the previous terminated instance first, then current).
    - Logs are written to `job_status.error` in Postgres — surfaced in the UI on the Jobs list and Job detail pages.
@@ -289,6 +317,11 @@ If either field is missing, add it to the ConfigMap. The DCGM Exporter pod does 
 | `model-cache-pvc` not present on dev cluster | `model_cache_pvc` field on `BenchmarkRequest` defaults to `None` → `emptyDir` |
 | `cat /results/artifacts/*/output.json` glob failed (no subdirectory) | Fixed to `cat /results/artifacts/output.json` |
 | asyncpg returns `UUID` type for job_id in `recover()` | Cast to `str()` in scheduler.py |
+| Gemma 4 requires a newer Transformers than vLLM 0.19.0 ships | `_VLLM_IMAGE_OVERRIDES` swaps in a custom `gemma4` image tag |
+
+## Test Coverage
+
+`backend/tests/test_renderer.py` covers vLLM rendering only — server args, aiperf args, PVC volumes, node selectors, quantisation handling. **SGLang has no renderer tests yet.** The fixture also still references the legacy `batch_scheduler` / `cuda_graphs` fields which are no longer on `BenchmarkRequest` — clean these up the next time the file is touched.
 
 ---
 

@@ -127,7 +127,11 @@ spec:
             {%- else %}
             - "--no-enable-prefix-caching"
             {%- endif %}
-            # Chunked prefill: always active in V1 engine (vLLM 0.8+) — flag omitted intentionally.
+            {%- if chunked_prefill %}
+            - "--enable-chunked-prefill"
+            {%- else %}
+            - "--no-enable-chunked-prefill"
+            {%- endif %}
             {%- if not flash_attention %}
             - "--enforce-eager"
             {%- endif %}
@@ -409,8 +413,9 @@ spec:
                   --concurrency "${CONC}" \
                   --request-count "$(( CONC * 10 ))" \
                   --isl "{{ input_tokens_mean }}" \
+                  --isl-stddev "{{ input_tokens_stddev }}" \
                   --osl "{{ output_tokens_mean }}" \
-                  --benchmark-duration "120" \
+                  --benchmark-duration "{{ duration_seconds }}" \
                   --warmup-request-count 2 \
                   --extra-inputs min_tokens:"{{ output_tokens_mean }}" \
                   --extra-inputs ignore_eos:true \
@@ -431,8 +436,9 @@ spec:
                 --concurrency "{{ concurrency }}" \
                 --request-count "{{ request_count }}" \
                 --isl "{{ input_tokens_mean }}" \
+                --isl-stddev "{{ input_tokens_stddev }}" \
                 --osl "{{ output_tokens_mean }}" \
-                --benchmark-duration "120" \
+                --benchmark-duration "{{ duration_seconds }}" \
                   --warmup-request-count 2 \
                 --extra-inputs min_tokens:"{{ output_tokens_mean }}" \
                 --extra-inputs ignore_eos:true \

@@ -3,6 +3,31 @@
 -- Owner annotations reflect which service is the sole writer of each table.
 
 -- ---------------------------------------------------------------------------
+-- models — owned by Next.js
+-- Catalogue of inference-ready LLMs. Derived fields (VRAM, arch_type, tags)
+-- live in the application layer.
+-- See db/migrations/0001_seed_models.sql for the initial data seed.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS models (
+    hf_repo_id            TEXT         PRIMARY KEY,
+    display_name          TEXT         NOT NULL,
+    vendor                TEXT         NOT NULL,
+    family                TEXT         NOT NULL,
+    param_count_b         NUMERIC(6,2) NOT NULL,
+    active_param_count_b  NUMERIC(6,2),                       -- NULL = dense, set = MoE
+    quality_tier          TEXT         NOT NULL,              -- 7b-class | 13b-class | 70b-class
+    supported_quants      TEXT[]       NOT NULL,              -- what we can serve as (native + on-the-fly)
+    native_quant          TEXT         NOT NULL,              -- what the weight files actually are: bf16 | fp16 | fp8 | nvfp4 | ...
+    ngc_container_tag     TEXT,                               -- NULL = no NGC NIM image
+    gated                 BOOLEAN      NOT NULL DEFAULT FALSE, -- TRUE = HuggingFace approval required
+    created_at            TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS models_vendor_idx ON models (vendor);
+CREATE INDEX IF NOT EXISTS models_family_idx ON models (family);
+
+-- ---------------------------------------------------------------------------
 -- jobs — owned by Next.js
 -- Full benchmark request as submitted by the user.
 -- ---------------------------------------------------------------------------
@@ -31,7 +56,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     output_tokens_mean  INT         NOT NULL DEFAULT 256,
     request_count       INT         NOT NULL DEFAULT 100,
     streaming           BOOLEAN     NOT NULL DEFAULT TRUE,
-    measurement_window  INT         NOT NULL DEFAULT 120,   -- seconds; aiperf --benchmark-duration
+    measurement_window  INT         NOT NULL DEFAULT 1800,  -- seconds; aiperf --benchmark-duration (30 min safety cap)
     isl_distribution    TEXT        NOT NULL DEFAULT 'normal-25', -- fixed|normal-10|normal-25|exponential|synthetic
     backend             TEXT        NOT NULL DEFAULT 'openai',    -- openai | triton-grpc
     -- TRT-LLM tuning

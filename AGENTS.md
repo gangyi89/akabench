@@ -6,10 +6,10 @@ This document covers the full project. For frontend-specific conventions (TypeSc
 
 ## Project Overview
 
-**AKAbench** is an internal Akamai portal for Sales Engineers to benchmark LLM inference on NVIDIA GPU hardware and produce customer-facing reports. Engineers select a model, inference engine, hardware tier, and load parameters, then trigger a live benchmark run. Results are streamed back in real time and can be exported as a PDF/Markdown/JSON report.
+**AKAbench** is an internal Akamai portal for Sales Engineers to benchmark LLM inference on NVIDIA GPU hardware and produce customer-facing reports. Engineers select a model, inference engine, hardware tier, and load parameters, then trigger a live benchmark run. Results are written back to Postgres + Linode Object Storage and surfaced on the Jobs and Reports pages.
 
-**Supported engines:** TensorRT-LLM (latency story) and vLLM (throughput story)  
-**Supported hardware:** RTX 4000 Ada (20 GB VRAM) and RTX Pro 6000 (96 GB VRAM, NVFP4-capable)  
+**Supported engines (executable):** vLLM (throughput) and SGLang (latency / structured generation). TensorRT-LLM is referenced by the frontend recommendation logic but is **not currently executable** — the backend templates and renderer have been removed pending a working NGC path. See "Engine Paths" below.
+**Supported hardware:** RTX 4000 Ada (20 GB VRAM) and RTX Pro 6000 (96 GB VRAM, NVFP4-capable)
 **Benchmark tool:** NVIDIA AIPerf
 
 ---
@@ -18,55 +18,91 @@ This document covers the full project. For frontend-specific conventions (TypeSc
 
 ```
 akabench/
-├── CLAUDE.md              # Root context file (you are reading its companion)
+├── CLAUDE.md              # Root context file → @AGENTS.md
 ├── AGENTS.md              # This file
+├── README.md              # Architecture, local dev, deploy instructions
+├── Makefile               # build / push / release / deploy targets
 ├── functional.md          # Product spec — portal UX, model catalogue, advisor logic
 ├── technical.md           # Architecture — K8s lifecycle, engine paths, API contract
 ├── project.md             # Earlier combined doc (superseded; for historical context only)
 │
-├── frontend/                  # Next.js app (frontend + API routes)
-│   ├── CLAUDE.md          # → @AGENTS.md (just a pointer)
+├── frontend/                  # Next.js 15 app (frontend + API routes)
+│   ├── CLAUDE.md          # → @AGENTS.md
 │   ├── AGENTS.md          # ← Read this for all frontend work
+│   ├── Dockerfile         # Multi-stage standalone build (node:20-alpine)
 │   └── src/
 │       ├── app/
-│       │   ├── page.tsx               # Main portal page (4-panel layout)
+│       │   ├── page.tsx               # Landing page (marketing + LoginModal entry)
+│       │   ├── landing.css            # Landing-page-only styles
+│       │   ├── portal/page.tsx        # Configure wizard (4-panel layout, auth-gated)
+│       │   ├── jobs/page.tsx          # Jobs list (SWR 5s refresh)
+│       │   ├── jobs/[id]/page.tsx     # Job detail (logs + report download)
+│       │   ├── reports/page.tsx       # Reports list
+│       │   ├── reports/[id]/page.tsx  # Report detail
 │       │   ├── layout.tsx
 │       │   └── api/
+│       │       ├── auth/              # /login, /logout, /me — HMAC session cookies
 │       │       ├── hardware/route.ts  # GET /api/hardware
 │       │       ├── models/
 │       │       │   ├── search/route.ts        # GET /api/models/search?q=
-│       │       │   └── derive/route.ts        # GET /api/models/:id/derive?gpu=
-│       │       └── jobs/                      # POST /api/jobs + GET /api/jobs/:id
+│       │       │   └── derive/route.ts        # GET /api/models/derive?id=&gpu=
+│       │       ├── jobs/
+│       │       │   ├── route.ts               # GET / POST /api/jobs
+│       │       │   └── [id]/
+│       │       │       ├── route.ts           # GET /api/jobs/:id
+│       │       │       ├── logs/route.ts      # GET /api/jobs/:id/logs?container=
+│       │       │       └── report/route.ts    # GET /api/jobs/:id/report?file=
+│       │       └── reports/
+│       │           ├── route.ts               # GET /api/reports
+│       │           └── [id]/route.ts          # GET /api/reports/:id
+│       ├── proxy.ts                   # Next.js middleware — auth gate (matches /portal, /jobs, /reports, protected APIs)
 │       ├── components/
 │       │   ├── ui/                    # shadcn/ui — do not hand-edit
-│       │   ├── panels/                # HardwarePanel, ModelPanel, EngineQuantPanel, …
-│       │   └── shared/                # QuantChip, etc.
+│       │   ├── panels/                # ModelPanel, EngineQuantPanel, HardwarePanel, TestParamsPanel
+│       │   └── shared/                # TopNav, LoginModal, QuantChip
 │       ├── lib/
-│       │   ├── catalogue/             # types.ts, db.ts (in-memory), seed.ts
-│       │   └── enrichment/            # engine.ts, quants.ts, vram.ts
+│       │   ├── auth/                  # HMAC session cookie helpers + user list
+│       │   ├── catalogue/             # types.ts, db.ts (Postgres-backed), seed.ts (GPUs only), derived.ts (UI helpers)
+│       │   ├── enrichment/            # engine.ts, quants.ts, vram.ts
+│       │   └── jobs/                  # store.ts, validation.ts, nats.ts
 │       └── store/
 │           └── benchmarkStore.ts      # Zustand global state
 │
 ├── backend/
 │   ├── AGENTS.md              # Backend-specific guide
+│   ├── CLAUDE.md              # → @AGENTS.md
 │   ├── job_controller/
 │   │   ├── main.py            # Entry point — uvicorn + NATS wiring
-│   │   ├── models.py          # Pydantic: BenchmarkRequest, BenchmarkResult
-│   │   ├── scheduler.py       # NATS consumer → K8s submit → status poll
-│   │   ├── renderer.py        # Jinja2 template renderer (derives infra values)
-│   │   ├── nats_client.py     # JetStream singleton
-│   │   ├── k8s_client.py      # BatchV1Api wrapper
-│   │   ├── db.py              # asyncpg — writes job_status only
+│   │   ├── models.py          # Pydantic: BenchmarkRequest, BenchmarkResult, CollectorPayload
+│   │   ├── scheduler.py       # NATS consumer → K8s submit → status poll + DLQ
+│   │   ├── renderer.py        # Jinja2 template renderer (vllm + sglang only)
+│   │   ├── nats_client.py     # JetStream singleton (JOBS + JOBS_DLQ streams)
+│   │   ├── k8s_client.py      # BatchV1Api wrapper — crash-loop detection, log fetch, fail_job
+│   │   ├── db.py              # asyncpg — reads jobs, writes job_status + job_dlq
 │   │   └── collector_api.py   # FastAPI — receives results POST from pod
-│   ├── db/
-│   │   └── schema.sql         # Postgres schema (jobs + job_status tables)
-│   └── templates/
-│       ├── benchmark-job-vllm.yaml    # Jinja2 — vLLM engine path
-│       └── benchmark-job-trtllm.yaml  # Jinja2 — TRT-LLM engine paths
+│   ├── templates/
+│   │   ├── benchmark-job-vllm.yaml          # Jinja2 — vLLM engine path
+│   │   ├── benchmark-job-vllm-test.yaml     # Static test manifest
+│   │   ├── benchmark-job-sglang.yaml        # Jinja2 — SGLang engine path
+│   │   └── benchmark-job-sglang-test.yaml   # Static test manifest
+│   └── tests/
+│       └── test_renderer.py   # vLLM renderer tests (SGLang coverage gap — see backend/AGENTS.md)
 │
-└── infra/
-    └── yaml/                  # Static reference manifests (superseded by backend/templates)
+├── db/
+│   ├── schema.sql             # Postgres schema — models, jobs, job_status, job_dlq
+│   └── migrations/
+│       └── 0001_seed_models.sql       # Catalogue seed (~48 models)
+│
+├── tests/
+│   └── AGENTS.md              # E2E test runbook (submit jobs, monitor, report)
+│
+└── deploy/
+    ├── infra/                 # postgres.yaml, nats.yaml, model-cache-pvc.yaml
+    ├── app/                   # job-controller.yaml, web.yaml, rbac.yaml
+    └── local/                 # docker-compose.yaml (Postgres + NATS for dev)
 ```
+
+`infra/yaml/` (mentioned in earlier docs) has been removed. The Jinja2 templates in `backend/templates/` are the authoritative job manifests; cluster service manifests live in `deploy/infra/`.
 
 ---
 
@@ -99,7 +135,7 @@ Infrastructure values (`memory_request/limit`, `engine_cache_key`, `model_cache_
 
 ### 5. Derived values are computed once, at the API boundary
 
-`dtype` is derived from `quantisation` in `POST /api/jobs` and stored in Postgres. The engine string is normalised from `trt-llm` (frontend) to `trtllm` (backend) at the same point. Neither the NATS consumer nor the renderer re-derives these — they read the stored values.
+`dtype` is derived from `quantisation` in `POST /api/jobs` and stored in Postgres. Engine strings are stored in their backend form (`vllm`, `sglang`). Neither the NATS consumer nor the renderer re-derives these — they read the stored values.
 
 ---
 
@@ -151,15 +187,15 @@ Serves the UI and exposes API routes for model search, VRAM estimation, engine r
 
 Data flow rule: **all derived UI state comes from `/api/models/:id/derive`**. Panels never compute compatibility themselves. This is the most important architectural constraint in the codebase.
 
-#### World 2: Python job controller + Kubernetes (`backend/` + `infra/`)
+#### World 2: Python job controller + Kubernetes (`backend/` + `deploy/`)
 
 The job controller consumes from NATS, renders the Jinja2 K8s Job manifest, submits it to the cluster, and polls status back to Postgres. Each K8s Job provisions a multi-container pod:
 
-1. **Engine container** (native sidecar, `restartPolicy: Always`) — starts the inference server on port 8000, stays alive for the lifetime of the Job
-2. **aiperf container** — waits for `/health`, drives the benchmark, writes results JSON to a shared `emptyDir` volume
+1. **Engine container** (native sidecar, `restartPolicy: Always`) — `vllm-server` or `sglang-server`, starts the inference server on port 8000, stays alive for the lifetime of the Job
+2. **aiperf container** — waits for `/health`, drives the benchmark, writes results JSON to a shared volume, and uploads results + DCGM metrics to Linode Object Storage
 3. **results-collector container** — POSTs structured metrics back to the collector API
 
-GPU node isolation is enforced via `nodeSelector` + `tolerations` — benchmark nodes are tainted `gpu-benchmark=true:NoSchedule`.
+The controller also detects engine container crash-loops (`restartCount >= 5`) and fails the Job via `activeDeadlineSeconds: 1`, capturing the last 60 lines of engine logs into `job_status.error`. See `backend/AGENTS.md` for details.
 
 ---
 
@@ -167,11 +203,11 @@ GPU node isolation is enforced via `nodeSelector` + `tolerations` — benchmark 
 
 | Path | Trigger | What happens |
 |---|---|---|
-| **TRT-LLM Path A (NGC)** | Model has an NGC container (`ngcContainerTag != null`) | Pre-compiled engine — no build step. Starts `trtllm-serve` immediately. Requires `ngc-registry` imagePullSecret. |
-| **TRT-LLM Path B (HF)** | TRT-LLM selected, no NGC container | Runs `trtllm-build` as an initContainer. Checks PVC engine cache first (`/models/engines/{slug}/{quant}/{gpu_type}/`). Cache miss = 15 min to 4 hrs compile. |
-| **vLLM** | vLLM selected | Loads safetensors directly from PVC model cache or HF Hub. No compile step. Fastest cold start. |
+| **vLLM** | vLLM selected (default) | Loads safetensors directly from PVC model cache or HF Hub. No compile step. Fastest cold start. Default image `vllm/vllm-openai:v0.19.0`; Gemma 4 models use a custom image with a patched Transformers version. |
+| **SGLang** | SGLang selected | Loads safetensors directly. No compile step. Image `lmsysorg/sglang:v0.5.1-cu126`. |
+| **TRT-LLM** | _Frontend recommends it, backend cannot execute it._ | The renderer has no `trtllm` template and `BenchmarkRequest` rejects engine values outside `{vllm, sglang}`. Any TRT-LLM submission will fail validation in the controller and be written to `job_dlq`. Tests/runbook calls for overriding the recommendation to vLLM. |
 
-All three expose `POST /v1/completions` and `GET /health` on port 8000. AIPerf targets `localhost:8000` regardless of engine — the infra abstraction is clean.
+Both runnable engines expose `POST /v1/completions` and `GET /health` on port 8000. AIPerf targets `localhost:8000` regardless of engine.
 
 **No Triton.** Do not introduce Triton Inference Server — it adds routing overhead that obscures raw engine performance numbers.
 
@@ -183,10 +219,8 @@ These rules are enforced in two places: client-side in `EngineQuantPanel.tsx` an
 
 | Rule | What happens |
 |---|---|
-| NVFP4 + vLLM | Block — NVFP4 is TRT-LLM exclusive |
 | NVFP4 + RTX 4000 Ada | Block — FP4 tensor cores only on RTX Pro 6000 |
-| SmoothQuant / W4A8 / W4A16 + vLLM | Block — NVIDIA-proprietary formats |
-| GGUF / EXL2 + TRT-LLM | Block — not supported |
+| SmoothQuant / W4A8 / W4A16 + vLLM or SGLang | Block — TensorRT-LLM exclusive |
 
 The quant type list lives in `frontend/src/lib/catalogue/types.ts`. Add new formats there first, then update `enrichment/quants.ts` and the K8s manifests.
 
@@ -203,6 +237,7 @@ kubectl create secret generic hf-token \
   --namespace default
 
 # Linode Object Storage (S3-compatible) — for uploading AIPerf + DCGM results
+# Also read by the web Deployment to presign log + report downloads
 # endpoint_url format: https://<cluster-id>.linodeobjects.com
 kubectl create secret generic object-storage \
   --from-literal=endpoint_url=<LINODE_ENDPOINT_URL> \
@@ -211,13 +246,18 @@ kubectl create secret generic object-storage \
   --from-literal=secret_access_key=<SECRET_KEY> \
   --namespace default
 
-# NGC registry (for TRT-LLM Path A NGC container images — TRT-LLM not yet in scope)
-kubectl create secret docker-registry ngc-registry \
-  --docker-server=nvcr.io \
-  --docker-username='$oauthtoken' \
-  --docker-password=<NGC_API_KEY> \
+# Web app session signing key (HMAC for aka_session cookies — 32+ bytes random)
+kubectl create secret generic web-secrets \
+  --from-literal=auth-secret=<RANDOM_HEX> \
+  --namespace default
+
+# Postgres connection URL for the web app and job controller
+kubectl create secret generic postgres-secrets \
+  --from-literal=database-url='postgres://akabench:<PW>@postgres:5432/akabench' \
   --namespace default
 ```
+
+NGC registry secret is **not** required at present — TRT-LLM is not executable.
 
 ---
 
@@ -227,11 +267,13 @@ kubectl create secret docker-registry ngc-registry \
 
 | Image | Pinned version |
 |---|---|
-| `vllm/vllm-openai` | `v0.19.0` |
-| `nvcr.io/nvidia/tensorrt-llm/release` | `1.2.0` |
+| `vllm/vllm-openai` | `v0.19.0` (Gemma 4 overrides to a custom `gemma4` tag — patched Transformers) |
+| `lmsysorg/sglang` | `v0.5.1-cu126` |
 | `aiperf` (pip package) | `0.7.0` |
 
-Rationale: NGC images update frequently. Unpinned images break result reproducibility between runs — a cardinal sin for a benchmark tool.
+Image tags are injected by `renderer.py` (via `_VLLM_IMAGE_OVERRIDES` and the `sglang_image` template variable) — never hand-edit them in the Jinja2 manifests.
+
+Rationale: upstream images update frequently. Unpinned images break result reproducibility between runs — a cardinal sin for a benchmark tool.
 
 ---
 
@@ -239,14 +281,15 @@ Rationale: NGC images update frequently. Unpinned images break result reproducib
 
 The following are **explicitly out of scope**. Do not stub, scaffold, or hint at these in code:
 
-- SSE streaming of live benchmark events back to the browser
-- Authentication / SSO — the user chip is static
+- SSE streaming of live benchmark events back to the browser (logs are fetched on-demand from Object Storage)
+- SSO / OIDC integration with the Akamai internal IdP (current auth is a hardcoded user + HMAC session cookie — sufficient for internal-only access)
 - Model Selection Advisor — recommendations panel
-- Concurrency sweep automation
 - Multi-GPU / tensor parallelism
 - Historical run comparison
 - Scheduled runs
 - Cost modelling
+
+Concurrency sweeps (`concurrencyLevels[]` on `POST /api/jobs`) are now in scope and partially implemented — see `frontend/AGENTS.md`.
 
 ---
 
@@ -271,12 +314,12 @@ Before wiring up real job execution, confirm:
 
 - [ ] K8s ≥ 1.29 (native sidecar `restartPolicy: Always` support)
 - [ ] NVIDIA device plugin + nvidia-container-toolkit on GPU nodes
-- [ ] NVIDIA driver ≥ 535, CUDA 12.x (required for FP8, TRT-LLM 0.12)
-- [ ] PVC `model-cache-pvc` (ReadWriteMany) in `gpu-benchmarks` namespace
-- [ ] NGC API key + `ngc-registry` secret
-- [ ] HF token + `hf-token` secret (with LLaMA 3 and Gemma 2 licences accepted)
-- [ ] SSO/OIDC integration with Akamai internal IdP
-- [ ] `trtllm-serve` `/v1/completions` endpoint verified compatible with AIPerf
+- [ ] NVIDIA driver ≥ 535, CUDA 12.x (required for FP8)
+- [ ] PVC `model-cache-pvc` (ReadWriteMany) — provisioned via `deploy/infra/model-cache-pvc.yaml`
+- [ ] HF token + `hf-token` secret (with LLaMA 3 and Gemma 3/4 licences accepted)
+- [ ] `object-storage` secret (S3-compatible, used by both the in-pod uploader and the web app for presigning)
+- [ ] `web-secrets` (AUTH_SECRET) + `postgres-secrets` (DATABASE_URL)
+- [ ] DCGM Exporter ConfigMap exposes `DCGM_FI_DEV_GPU_UTIL` and `DCGM_FI_DEV_FB_USED` (see backend/AGENTS.md)
 
 ---
 
@@ -288,7 +331,9 @@ Before wiring up real job execution, confirm:
 | What quants are supported per model? | `frontend/src/lib/enrichment/quants.ts` |
 | How is VRAM estimated? | `frontend/src/lib/enrichment/vram.ts` |
 | What does the /derive endpoint return? | `frontend/src/lib/catalogue/types.ts` → `DeriveResult` |
-| K8s job structure for vLLM | `infra/yaml/benchmark-job-vllm.yaml` |
-| K8s job structure for TRT-LLM | `infra/yaml/benchmark-job-trtllm.yaml` |
+| K8s job structure for vLLM | `backend/templates/benchmark-job-vllm.yaml` |
+| K8s job structure for SGLang | `backend/templates/benchmark-job-sglang.yaml` |
+| Auth / session cookie format | `frontend/src/lib/auth/`, `frontend/src/proxy.ts` |
+| Model catalogue (Postgres seed) | `db/migrations/0001_seed_models.sql` |
 | Full product spec | `functional.md` |
 | Full technical spec | `technical.md` |

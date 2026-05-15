@@ -15,16 +15,21 @@ Submit benchmark jobs for all models compatible with a given GPU, then monitor t
 ## Prerequisites
 
 - Next.js dev server running at `http://localhost:3000` (run `cd frontend && npm run dev`)
+- Job controller running locally (`cd backend && .venv/bin/python -m job_controller.main`)
+- Postgres + NATS up via `cd deploy/local && docker compose up -d`
 - K8s cluster reachable via `kubectl` with GPU nodes available
-- Required K8s secrets in place (`hf-token`, `object-storage`, `ngc-registry`)
-
-Verify the server is up before submitting any jobs:
+- Required K8s secrets in place: `hf-token`, `object-storage` (NGC secret no longer required — TRT-LLM is not in scope)
+- Logged-in session — every protected route requires the `aka_session` cookie. Either obtain one via `POST /api/auth/login` first, or run an unauthenticated `curl` against `/api/auth/login` and reuse the `Set-Cookie` value:
 
 ```bash
-curl -s http://localhost:3000/api/hardware
+curl -s -c /tmp/aka.cookies -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"akamai","password":"akabench"}'
+# Subsequent calls:
+curl -s -b /tmp/aka.cookies http://localhost:3000/api/hardware
 ```
 
-A valid JSON response with GPU entries confirms the server is ready.
+A valid JSON response with GPU entries confirms the server is ready *and* the session is good.
 
 ---
 
@@ -32,7 +37,7 @@ A valid JSON response with GPU entries confirms the server is ready.
 
 The RTX 4000 Ada has 20 GB VRAM and no FP4 tensor cores. Compatible models are those where `vramFp16Gb <= 20` (run at bf16) or `vramFp8Gb <= 20` (run at fp8 when FP16 doesn't fit). NVFP4-only models and anything that doesn't fit at FP8 are excluded.
 
-Use `GET /api/hardware` and `GET /api/models/search?q=` to enumerate, or refer to the seed catalogue in `frontend/src/lib/catalogue/seed.ts`.
+Use `GET /api/hardware` and `GET /api/models/search?q=` to enumerate, or refer to the Postgres seed at `db/migrations/0001_seed_models.sql` (the in-memory `SEED_MODELS` array has been removed).
 
 For RTX 4000 Ada the compatible set is (14 models):
 
@@ -46,8 +51,9 @@ For RTX 4000 Ada the compatible set is (14 models):
 
 Use `GET /api/models/derive?id=<hfRepoId>&gpu=rtx-4000-ada` to get the engine recommendation. In practice:
 
-- Most models: use `vllm`
-- Models with `ngcContainerTag` (e.g. Nemotron-Mini): `/derive` recommends `trt-llm`, but **use `vllm` instead** until TRT-LLM is confirmed working in the cluster (all TRT-LLM jobs currently fail)
+- Most models: use `vllm` (default, fastest cold start)
+- Models with `ngcContainerTag` (e.g. Nemotron-Mini): `/derive` still recommends `trt-llm`, but **must be overridden to `vllm`** — the backend renderer has no TRT-LLM template (`_ALLOWED_ENGINES = {"vllm", "sglang"}` in `backend/job_controller/models.py`). A TRT-LLM submission will be rejected by Pydantic and DLQ'd.
+- For structured-generation / lower-latency tests, try `sglang` (image `lmsysorg/sglang:v0.5.1-cu126`).
 
 ---
 
@@ -57,7 +63,7 @@ Use `GET /api/models/derive?id=<hfRepoId>&gpu=rtx-4000-ada` to get the engine re
 submit() {
   local model=$1 quant=$2 engine=$3
   echo -n "[$model | $quant | $engine] → "
-  curl -s -X POST http://localhost:3000/api/jobs \
+  curl -s -b /tmp/aka.cookies -X POST http://localhost:3000/api/jobs \
     -H "Content-Type: application/json" \
     -d "{\"modelId\":\"$model\",\"engine\":\"$engine\",\"quantisation\":\"$quant\",\"gpuId\":\"rtx-4000-ada\"}"
   echo
@@ -98,7 +104,7 @@ import subprocess, json, time
 my_ids = ['<id1_prefix>', '<id2_prefix>', ...]  # first 8 chars of each jobId
 
 def fetch():
-    r = subprocess.run(['curl','-s','http://localhost:3000/api/jobs'], capture_output=True, text=True)
+    r = subprocess.run(['curl','-s','-b','/tmp/aka.cookies','http://localhost:3000/api/jobs'], capture_output=True, text=True)
     return json.loads(r.stdout)['jobs']
 
 def matches(job):
@@ -144,10 +150,9 @@ This lets K8s mark it `Failed` naturally and the job controller will update the 
 
 | # | Issue | Severity |
 |---|---|---|
-| 1 | **TRT-LLM engine path is broken** — all TRT-LLM jobs fail with `K8s Job failed. No logs available.` Pod never starts (likely missing NGC secret or manifest error). | High |
-| 2 | **Engine recommendation steers NGC models to broken TRT-LLM** — `/derive` recommends `trt-llm` for Nemotron-Mini-4B-Instruct due to `ngcContainerTag`. Override to `vllm` until TRT-LLM is fixed. | Medium |
+| 1 | **TRT-LLM engine path is removed from the backend** — the renderer and templates were dropped (`_ALLOWED_ENGINES = {"vllm", "sglang"}`). Any TRT-LLM submission is now rejected at Pydantic parse time in the controller and DLQ'd. | High (workflow) |
+| 2 | **Engine recommendation still steers NGC models to TRT-LLM** — `/derive` recommends `trt-llm` for Nemotron-Mini-4B-Instruct due to `ngcContainerTag`. Override to `vllm` (or `sglang`) before submitting. | Medium |
 | 3 | **Status sync lag causes brief double-running display** — when one job completes at the K8s level and the next pod starts before the collector POST lands, the Jobs page briefly shows two jobs as `running` on a single-GPU cluster. | Low |
-| 4 | **TRT-LLM jobs never transition `pending → running` in DB** — the job controller does not reflect the running state for TRT-LLM jobs before they fail, so the Jobs page always shows them as `pending` until failure. | Low |
 
 ---
 

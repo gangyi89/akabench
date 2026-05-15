@@ -1,32 +1,61 @@
 /**
- * In-memory catalogue store — MVP only.
- * All reads/writes go through these functions.
- * Replace internals with a Postgres client later without touching callers.
+ * Catalogue store.
+ *   - Models are persisted in Postgres (table `models`) — async reads.
+ *   - GPUs are hardware constants — kept in memory.
  */
-import type { EnrichedModel, GPU } from './types'
-import { SEED_MODELS, SEED_GPUS } from './seed'
+import { sql } from '@/lib/db'
+import type { EnrichedModel, GPU, QualityTier, QuantType } from './types'
+import { SEED_GPUS } from './seed'
 
-const models: Map<string, EnrichedModel> = new Map(
-  SEED_MODELS.map((m) => [m.hfRepoId, m])
-)
-
-const gpus: Map<string, GPU> = new Map(
-  SEED_GPUS.map((g) => [g.id, g])
-)
-
-export function searchModels(query: string): EnrichedModel[] {
-  const q = query.toLowerCase().trim()
-  if (!q) return SEED_MODELS
-  return SEED_MODELS.filter(
-    (m) =>
-      m.hfRepoId.toLowerCase().includes(q) ||
-      m.family.toLowerCase().includes(q) ||
-      m.vendor.toLowerCase().includes(q)
-  )
+type ModelRow = {
+  hf_repo_id: string
+  display_name: string
+  vendor: string
+  family: string
+  param_count_b: string                // NUMERIC returns as string
+  active_param_count_b: string | null
+  quality_tier: string
+  supported_quants: string[]
+  native_quant: string
+  ngc_container_tag: string | null
+  gated: boolean
 }
 
-export function getModel(hfRepoId: string): EnrichedModel | null {
-  return models.get(hfRepoId) ?? null
+function rowToModel(row: ModelRow): EnrichedModel {
+  return {
+    hfRepoId:          row.hf_repo_id,
+    displayName:       row.display_name,
+    vendor:            row.vendor,
+    family:            row.family,
+    paramCountB:       Number(row.param_count_b),
+    activeParamCountB: row.active_param_count_b !== null ? Number(row.active_param_count_b) : null,
+    qualityTier:       row.quality_tier as QualityTier,
+    supportedQuants:   row.supported_quants as QuantType[],
+    nativeQuant:       row.native_quant as QuantType,
+    ngcContainerTag:   row.ngc_container_tag,
+    gated:             row.gated,
+  }
+}
+
+export async function searchModels(query: string): Promise<EnrichedModel[]> {
+  const q = query.toLowerCase().trim()
+  const rows = q
+    ? await sql<ModelRow[]>`
+        SELECT * FROM models
+        WHERE LOWER(hf_repo_id) LIKE ${'%' + q + '%'}
+           OR LOWER(family)     LIKE ${'%' + q + '%'}
+           OR LOWER(vendor)     LIKE ${'%' + q + '%'}
+        ORDER BY hf_repo_id
+      `
+    : await sql<ModelRow[]>`SELECT * FROM models ORDER BY hf_repo_id`
+  return rows.map(rowToModel)
+}
+
+export async function getModel(hfRepoId: string): Promise<EnrichedModel | null> {
+  const rows = await sql<ModelRow[]>`
+    SELECT * FROM models WHERE hf_repo_id = ${hfRepoId}
+  `
+  return rows[0] ? rowToModel(rows[0]) : null
 }
 
 export function getAllGpus(): GPU[] {
@@ -34,5 +63,5 @@ export function getAllGpus(): GPU[] {
 }
 
 export function getGpu(id: string): GPU | null {
-  return gpus.get(id) ?? null
+  return SEED_GPUS.find((g) => g.id === id) ?? null
 }

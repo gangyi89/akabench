@@ -7,12 +7,11 @@ from pydantic import BaseModel, Field, field_validator
 
 _ALLOWED_GPU_TYPES      = {"rtx-4000-ada", "rtx-pro-6000"}
 _ALLOWED_QUANT_TYPES    = {"fp16", "bf16", "fp8", "nvfp4", "int4_awq", "smoothquant", "w4a8", "w4a16", None}
-_ALLOWED_ENGINES        = {"vllm", "trtllm", "sglang"}
+_ALLOWED_ENGINES        = {"vllm", "sglang"}
 _ALLOWED_DTYPES         = {"auto", "float16", "bfloat16"}
 _ALLOWED_KV_DTYPES      = {"auto", "fp8", "int8", "fp16"}
 _ALLOWED_ISL_DIST       = {"fixed", "normal-10", "normal-25", "exponential", "synthetic"}
 _ALLOWED_BACKENDS       = {"openai", "triton-grpc"}
-_ALLOWED_SCHEDULERS     = {"inflight", "static"}
 
 
 class BenchmarkRequest(BaseModel):
@@ -22,22 +21,19 @@ class BenchmarkRequest(BaseModel):
     # Hardware
     gpu_type: str = ""                          # rtx-4000-ada | rtx-pro-6000
     # Engine
-    engine: Literal["vllm", "trtllm", "sglang"] = "vllm"
+    engine: Literal["vllm", "sglang"] = "vllm"
     # Model
     model_id: str = ""
     quantisation: Optional[str] = None         # fp16 | fp8 | awq | gptq | nvfp4 | None
     dtype: str = "auto"                         # derived from quantisation by Next.js
     # Engine server params
-    kv_cache_dtype: str = "auto"               # auto | fp8 | int8 (vLLM) | fp16 (TRT-LLM)
+    kv_cache_dtype: str = "auto"               # auto | fp8 | int8
     max_model_len: int = Field(default=2048, ge=512, le=131072)
     gpu_memory_util: float = Field(default=0.90, ge=0.1, le=1.0)
     max_batch_size: int = Field(default=64, ge=1, le=1024)
     prefix_caching: bool = True
     chunked_prefill: bool = True
     flash_attention: bool = True
-    # TRT-LLM specific
-    batch_scheduler: str = "inflight"           # inflight | static
-    cuda_graphs: bool = True
     # Benchmark parameters
     concurrency: int = Field(default=16, ge=1, le=1000)
     concurrency_levels: list[int] = []         # empty = single-run; non-empty = sweep
@@ -45,7 +41,7 @@ class BenchmarkRequest(BaseModel):
     output_tokens_mean: int = Field(default=256, ge=1, le=32768)
     request_count: int = Field(default=100, ge=1, le=100000)
     streaming: bool = True
-    measurement_window: int = Field(default=120, ge=10, le=3600)  # seconds
+    measurement_window: int = Field(default=1800, ge=10, le=3600)  # seconds
     isl_distribution: str = "normal-25"        # fixed|normal-10|normal-25|exponential|synthetic
     backend: str = "openai"                    # openai | triton-grpc
 
@@ -89,13 +85,6 @@ class BenchmarkRequest(BaseModel):
     def _check_backend(cls, v: str) -> str:
         if v not in _ALLOWED_BACKENDS:
             raise ValueError(f"backend must be one of {_ALLOWED_BACKENDS}")
-        return v
-
-    @field_validator("batch_scheduler")
-    @classmethod
-    def _check_batch_scheduler(cls, v: str) -> str:
-        if v not in _ALLOWED_SCHEDULERS:
-            raise ValueError(f"batch_scheduler must be one of {_ALLOWED_SCHEDULERS}")
         return v
 
     @field_validator("concurrency_levels")

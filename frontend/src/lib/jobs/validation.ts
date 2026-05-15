@@ -18,10 +18,6 @@ export function validateJobRequest(req: JobSubmitRequest): ValidationError | nul
     }
   }
 
-  if (q === 'nvfp4' && engine === 'sglang') {
-    return { error: 'NVFP4 is TensorRT-LLM exclusive', code: 'QUANT_TRTLLM_ONLY' }
-  }
-
   if ((q === 'smoothquant' || q === 'w4a8' || q === 'w4a16') && (engine === 'vllm' || engine === 'sglang')) {
     return { error: `${q} is TensorRT-LLM exclusive`, code: 'QUANT_TRTLLM_ONLY' }
   }

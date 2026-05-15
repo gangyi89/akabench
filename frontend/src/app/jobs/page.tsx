@@ -93,7 +93,7 @@ export default function JobsPage() {
             </p>
           </div>
           <Link
-            href="/"
+            href="/portal"
             className="flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold text-white"
             style={{ background: 'var(--aka-blue)', boxShadow: '0 2px 8px rgba(0,155,222,0.3)' }}
           >
@@ -129,7 +129,7 @@ export default function JobsPage() {
                   <tr>
                     <td colSpan={HEADERS.length} className="px-4 py-12 text-center text-[14px]" style={{ color: 'var(--aka-gray-400)' }}>
                       No benchmark jobs yet.{' '}
-                      <Link href="/" style={{ color: 'var(--aka-blue)' }}>Run your first benchmark →</Link>
+                      <Link href="/portal" style={{ color: 'var(--aka-blue)' }}>Run your first benchmark →</Link>
                     </td>
                   </tr>
                 ) : (

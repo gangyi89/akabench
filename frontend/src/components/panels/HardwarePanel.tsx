@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useBenchmarkStore } from '@/store/benchmarkStore'
-import type { GPU, CompatResult } from '@/lib/catalogue/types'
+import type { GPU, CompatResult, QuantType } from '@/lib/catalogue/types'
+import { vramFp16Gb, vramFp8Gb, vramNvfp4Gb } from '@/lib/catalogue/derived'
+
+// Can this GPU actually run the model as `q`?  fitsNvfp4 already accounts for
+// FP4 tensor cores; fitsFp8/fitsFp16 are VRAM-only (engines handle the rest).
+function gpuCanRun(q: QuantType, compat: CompatResult): boolean {
+  if (q === 'nvfp4') return compat.fitsNvfp4
+  if (q === 'fp8' || q === 'smoothquant' || q === 'w4a8' || q === 'w4a16') return compat.fitsFp8
+  return compat.fitsFp16
+}
 
 // GpuSpec kept for potential reuse — inline spec rows used in GPU cards instead
 
@@ -39,10 +48,10 @@ export default function HardwarePanel() {
     if (!deriveResult) return null
     const m = deriveResult.model
     const q = selectedQuant
-    if (!q || q === 'fp16' || q === 'bf16') return { gb: m.vramFp16Gb, label: q?.toUpperCase() ?? 'FP16' }
-    if (q === 'fp8' || q === 'smoothquant') return { gb: m.vramFp8Gb, label: q.toUpperCase() }
+    if (!q || q === 'fp16' || q === 'bf16') return { gb: vramFp16Gb(m), label: q?.toUpperCase() ?? 'FP16' }
+    if (q === 'fp8' || q === 'smoothquant') return { gb: vramFp8Gb(m), label: q.toUpperCase() }
     // int4 variants and nvfp4 — use the NVFP4/INT4 estimate
-    return { gb: m.vramNvfp4Gb, label: q.toUpperCase() }
+    return { gb: vramNvfp4Gb(m), label: q.toUpperCase() }
   }
   const vram = vramForQuant()
 
@@ -96,38 +105,66 @@ export default function HardwarePanel() {
           </div>
         )}
 
+        {/* NVFP4 needs an FP4-capable GPU; if none are available, surface a hard error. */}
+        {selectedQuant === 'nvfp4' && !gpus.some((g) => g.available && g.tensorCoreCaps.includes('fp4')) && (
+          <div
+            className="rounded-md px-3 py-2"
+            style={{
+              border: '1px solid #fca5a5',
+              background: '#fef2f2',
+              fontSize: '12px',
+              color: '#991b1b',
+            }}
+          >
+            ⚠ NVFP4 requires RTX Pro 6000 — not currently provisioned. Pick a different quantisation or wait for hardware availability.
+          </div>
+        )}
+
         {/* GPU cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {gpus.map((gpu) => {
             const compat = compatMap.get(gpu.id)
             const isSelected = selectedGpuId === gpu.id
 
-            // Determine fit status — if a quant is selected, check that quant's VRAM;
-            // otherwise fall back to "nothing fits at all"
-            const isIncompatible = selectedModelId && compat && (
-              selectedQuant && vram
-                ? vram.gb > gpu.vramGb
-                : !compat.fitsFp16 && !compat.fitsFp8 && !compat.fitsNvfp4
+            // If a quant is selected, the GPU must be able to run *that* quant
+            // (VRAM + cores). Otherwise the GPU must be able to run at least
+            // one of the model's supported quants — i.e. the GPU can host this
+            // model at all.
+            const model = deriveResult?.model
+            const isIncompatible = selectedModelId && compat && model && (
+              selectedQuant
+                ? !gpuCanRun(selectedQuant, compat)
+                : !model.supportedQuants.some((q) => gpuCanRun(q, compat))
             )
+
+            const isUnavailable = !gpu.available
+            const isDisabled = isUnavailable || !!isIncompatible
 
             return (
               <button
                 key={gpu.id}
                 type="button"
                 onClick={() => setSelectedGpu(gpu.id)}
-                disabled={!!isIncompatible}
+                disabled={isDisabled}
                 className="relative text-left rounded-md p-[14px] transition-colors"
                 style={{
                   border: isSelected
                     ? '2px solid var(--aka-blue)'
                     : '2px solid var(--aka-gray-200)',
                   background: isSelected ? 'var(--aka-light)' : '#fff',
-                  opacity: isIncompatible ? 0.45 : 1,
-                  cursor: isIncompatible ? 'not-allowed' : 'pointer',
+                  opacity: isDisabled ? 0.45 : 1,
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
                 }}
               >
-                {/* Incompatible badge */}
-                {isIncompatible && (
+                {/* Unavailable takes precedence over Too small */}
+                {isUnavailable ? (
+                  <span
+                    className="absolute top-2 right-2 font-bold uppercase tracking-wider rounded px-1.5 py-px"
+                    style={{ fontSize: '9px', color: 'var(--aka-gray-600)', background: 'var(--aka-gray-100)', border: '1px solid var(--aka-gray-300)' }}
+                  >
+                    Unavailable
+                  </span>
+                ) : isIncompatible && (
                   <span
                     className="absolute top-2 right-2 font-bold uppercase tracking-wider rounded px-1.5 py-px"
                     style={{ fontSize: '9px', color: 'var(--aka-red)', background: '#fee2e2', border: '1px solid #fca5a5' }}
@@ -137,7 +174,7 @@ export default function HardwarePanel() {
                 )}
 
                 {/* Selected checkmark */}
-                {isSelected && !isIncompatible && (
+                {isSelected && !isDisabled && (
                   <span
                     className="absolute top-2 right-2 inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-white font-bold"
                     style={{ background: 'var(--aka-blue)', fontSize: '11px' }}

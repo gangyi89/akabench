@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getJob } from '@/lib/jobs/store'
+import { getSession, unauthorizedResponse } from '@/lib/auth/session'
 
 const VALID = ['engine', 'aiperf'] as const
 type Container = typeof VALID[number]
@@ -28,6 +29,9 @@ export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
+  const session = await getSession(req)
+  if (!session) return unauthorizedResponse()
+
   const { id } = await ctx.params
   const container = (req.nextUrl.searchParams.get('container') ?? 'engine') as Container
 

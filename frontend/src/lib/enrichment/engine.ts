@@ -1,4 +1,5 @@
 import type { EnrichedModel, GPU, EngineType } from '@/lib/catalogue/types'
+import { isMoe } from '@/lib/catalogue/derived'
 
 export interface EngineRecommendation {
   recommended: EngineType
@@ -30,7 +31,7 @@ export function deriveEngineRecommendation(
   }
 
   // MoE architecture — vLLM PagedAttention handles expert routing better today
-  if (model.archType === 'moe') {
+  if (isMoe(model)) {
     return {
       recommended: 'vllm',
       note: 'Mixture-of-Experts model — vLLM handles expert routing more efficiently today.',

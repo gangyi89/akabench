@@ -8,20 +8,13 @@ const TAG_STYLES: Record<string, string> = {
   nvidia:  'border-[#009bde] text-[#009bde] bg-[#e8f5fd]',
   ngc:     'border-[#009bde] text-[#009bde] bg-[#e8f5fd]',
   nvfp4:   'border-[#7c3aed] text-[#7c3aed] bg-[#f5f3ff]',
-  apache2: 'border-[#22c55e] text-[#166534] bg-[#f0fdf4]',
-  mit:     'border-[#22c55e] text-[#166534] bg-[#f0fdf4]',
-  gated:   'border-[#f59e0b] text-[#92400e] bg-[#fffbeb]',
+  bf16:    'border-[#e5e7eb] text-[#6b7280] bg-[#f3f4f6]',
   fp8:     'border-[#e5e7eb] text-[#6b7280] bg-[#f3f4f6]',
+  gated:   'border-[#f59e0b] text-[#92400e] bg-[#fffbeb]',
 }
 
 function tagStyle(tag: string) {
   return TAG_STYLES[tag] ?? 'border-[#e5e7eb] text-[#6b7280] bg-[#f3f4f6]'
-}
-
-function formatDownloads(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M/mo`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K/mo`
-  return `${n}/mo`
 }
 
 const PANEL_STYLE = {
@@ -109,7 +102,9 @@ export default function ModelPanel() {
 
   async function handleSelectModel(hfRepoId: string) {
     if (hfRepoId === selectedModelId) return
-    await fetchDerive(hfRepoId, selectedGpuId)
+    // Model change clears engine + GPU in the store, so derive without a GPU
+    // context — the prior selectedGpuId is about to be wiped.
+    await fetchDerive(hfRepoId, null)
   }
 
   return (
@@ -221,7 +216,7 @@ export default function ModelPanel() {
                       </a>
                     </div>
                     <div className="mt-0.5" style={{ fontSize: '12px', color: 'var(--aka-gray-500)' }}>
-                      {model.paramCountB}B params · ~{model.vramFp16Gb} GB FP16 · {formatDownloads(model.downloadsMonthly)}
+                      {model.paramCountB}B params · ~{model.vramFp16Gb} GB FP16
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {model.tags.map(tag => (
@@ -230,16 +225,15 @@ export default function ModelPanel() {
                           className={`inline-flex items-center rounded-full border px-1.5 py-px font-semibold ${tagStyle(tag)}`}
                           style={{ fontSize: '11px' }}
                         >
-                          {tag === 'apache2' ? 'Apache 2.0' : tag === 'mit' ? 'MIT' : tag.toUpperCase()}
+                          {tag.toUpperCase()}
                         </span>
                       ))}
                     </div>
                   </div>
                   <div className="text-right shrink-0" style={{ fontSize: '12px' }}>
-                    {model.licenceWarning
-                      ? <span style={{ color: 'var(--aka-amber)' }}>⚠ {model.licenceWarning}</span>
-                      : <span style={{ color: 'var(--aka-green)' }}>✓ {model.licenceType === 'mit' ? 'MIT' : model.licenceType === 'llama3' ? 'Llama 3' : 'Apache 2.0'}</span>
-                    }
+                    {model.gated && (
+                      <span style={{ color: 'var(--aka-amber)' }}>⚠ HF approval required</span>
+                    )}
                   </div>
                 </div>
               </button>

@@ -1,0 +1,209 @@
+# Frontend (Next.js) — UI + API routes + NATS publisher + Postgres writer.
+# Stateless: scale horizontally by raising `replicas`. The job_controller is
+# the only writer of job_status; nothing here needs leadership.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: registry.akamai.internal/akabench/web:latest   # replaced by `make release`
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: NATS_URL
+              value: "nats://nats.default.svc.cluster.local:4222"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: database-url
+            # 32+ byte HMAC key used by lib/auth/session.ts for cookie signing.
+            # Generate once: `openssl rand -base64 48`
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: web-secrets
+                  key: auth-secret
+            # Linode Object Storage (S3-compatible) — same bucket the
+            # results-collector pod writes aiperf.json / dcgm.json into.
+            - name: S3_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: endpoint_url
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: bucket
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-storage
+                  key: secret_access_key
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 3000
+      name: http
+---
+# Gateway API (Envoy Gateway). The Helm install of envoy-gateway provides
+# the `eg` GatewayClass. Envoy Gateway provisions a Service of type
+# LoadBalancer for this Gateway automatically — on Linode that becomes a
+# NodeBalancer. Point the `akabench.gangstack.com` DNS A record at the
+# external IP of `envoy-default-akabench-gateway-*` in `envoy-gateway-system`.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: akabench-gateway
+  namespace: default
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: akabench.gangstack.com
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: akabench.gangstack.com
+      allowedRoutes:
+        namespaces:
+          from: Same
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: akabench-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: web
+  namespace: default
+spec:
+  parentRefs:
+    - name: akabench-gateway
+      sectionName: https
+  hostnames:
+    - akabench.gangstack.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: web
+          port: 80
+---
+# HTTP listener serves a 301 redirect to HTTPS. cert-manager's HTTP-01 solver
+# creates its own HTTPRoute on the `/.well-known/acme-challenge/<token>` path
+# during issuance/renewal — that path is more specific than `/`, so Gateway
+# API routing precedence keeps ACME challenges working without exemption.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: web-http-redirect
+  namespace: default
+spec:
+  parentRefs:
+    - name: akabench-gateway
+      sectionName: http
+  hostnames:
+    - akabench.gangstack.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# Let's Encrypt issuer (cluster-scoped). cert-manager must be installed with
+# Gateway API support enabled: `--set config.enableGatewayAPI=true` on the
+# Helm install. The HTTP-01 solver creates a temporary HTTPRoute on the
+# `akabench-gateway` for the ACME challenge — the HTTP listener on port 80
+# must stay reachable from the public internet for renewals to succeed.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: gangyi89@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - group: gateway.networking.k8s.io
+                kind: Gateway
+                name: akabench-gateway
+                namespace: default
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: akabench-tls
+  namespace: default
+spec:
+  secretName: akabench-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  dnsNames:
+    - akabench.gangstack.com

@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getJobDetail } from '@/lib/jobs/store'
+import { getSession, unauthorizedResponse } from '@/lib/auth/session'
 import type { AiperfResults, SweepPoint } from '@/lib/catalogue/types'
 
 // S3 credentials live in server-side env vars only — never exposed to the browser.
@@ -33,9 +34,12 @@ async function fetchS3Json(s3: S3Client, bucket: string, key: string): Promise<u
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
+  const session = await getSession(req)
+  if (!session) return unauthorizedResponse()
+
   const { id } = await ctx.params
 
   const job = await getJobDetail(id)

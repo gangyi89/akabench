@@ -74,15 +74,11 @@ async def get_job(job_id: str) -> "BenchmarkRequest":
     if row is None:
         raise ValueError(f"Job {job_id!r} not found in jobs table")
 
-    # The jobs table stores the frontend engine string ('trt-llm').
-    # BenchmarkRequest expects the backend normalised form ('trtllm').
-    engine = "trtllm" if row["engine"] == "trt-llm" else row["engine"]
-
     return BenchmarkRequest(
         job_id=str(row["job_id"]),
         submitted_by=row["submitted_by"],
         gpu_type=row["gpu_type"],
-        engine=engine,
+        engine=row["engine"],
         model_id=row["model_id"],
         quantisation=row["quantisation"],
         dtype=row["dtype"],
@@ -93,8 +89,6 @@ async def get_job(job_id: str) -> "BenchmarkRequest":
         prefix_caching=row["prefix_caching"],
         chunked_prefill=row["chunked_prefill"],
         flash_attention=row["flash_attention"],
-        batch_scheduler=row["batch_scheduler"],
-        cuda_graphs=row["cuda_graphs"],
         concurrency=row["concurrency"],
         concurrency_levels=[int(v) for v in row["concurrency_levels"].split()] if row["concurrency_levels"] else [],
         input_tokens_mean=row["input_tokens_mean"],

@@ -130,6 +130,9 @@ spec:
             {%- if chunked_prefill %}
             - "--chunked-prefill-size=512"
             {%- endif %}
+            {%- if not prefix_caching %}
+            - "--disable-radix-cache"
+            {%- endif %}
             - "--host=0.0.0.0"
             - "--port=8000"
 
@@ -412,8 +415,9 @@ spec:
                   --concurrency "${CONC}" \
                   --request-count "$(( CONC * 10 ))" \
                   --isl "{{ input_tokens_mean }}" \
+                  --isl-stddev "{{ input_tokens_stddev }}" \
                   --osl "{{ output_tokens_mean }}" \
-                  --benchmark-duration "120" \
+                  --benchmark-duration "{{ duration_seconds }}" \
                   --warmup-request-count 2 \
                   --extra-inputs min_tokens:"{{ output_tokens_mean }}" \
                   --extra-inputs ignore_eos:true \
@@ -434,8 +438,9 @@ spec:
                 --concurrency "{{ concurrency }}" \
                 --request-count "{{ request_count }}" \
                 --isl "{{ input_tokens_mean }}" \
+                --isl-stddev "{{ input_tokens_stddev }}" \
                 --osl "{{ output_tokens_mean }}" \
-                --benchmark-duration "120" \
+                --benchmark-duration "{{ duration_seconds }}" \
                   --warmup-request-count 2 \
                 --extra-inputs min_tokens:"{{ output_tokens_mean }}" \
                 --extra-inputs ignore_eos:true \

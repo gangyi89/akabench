@@ -1,11 +1,15 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getJobDetail } from '@/lib/jobs/store'
+import { getSession, unauthorizedResponse } from '@/lib/auth/session'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: RouteContext<'/api/jobs/[id]'>,
 ): Promise<NextResponse> {
+  const session = await getSession(req)
+  if (!session) return unauthorizedResponse()
+
   const { id } = await ctx.params
 
   const job = await getJobDetail(id)

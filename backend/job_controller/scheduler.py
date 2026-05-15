@@ -75,7 +75,6 @@ async def handle_request(msg) -> None:
             "concurrency=%s isl=%s osl=%s requests=%s streaming=%s | "
             "max_model_len=%s max_batch=%s gpu_mem_util=%s kv_cache_dtype=%s | "
             "prefix_caching=%s chunked_prefill=%s flash_attn=%s | "
-            "batch_scheduler=%s cuda_graphs=%s | "
             "isl_distribution=%s measurement_window=%s",
             req.job_id,
             req.model_id, req.engine, req.gpu_type, req.quantisation, req.dtype,
@@ -83,7 +82,6 @@ async def handle_request(msg) -> None:
             req.request_count, req.streaming,
             req.max_model_len, req.max_batch_size, req.gpu_memory_util, req.kv_cache_dtype,
             req.prefix_caching, req.chunked_prefill, req.flash_attention,
-            req.batch_scheduler, req.cuda_graphs,
             req.isl_distribution, req.measurement_window,
         )
         await k8s_client.create_job(manifest)

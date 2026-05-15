@@ -14,7 +14,6 @@ _env = Environment(loader=FileSystemLoader(str(_TEMPLATE_DIR)))
 
 TEMPLATE_MAP = {
     "vllm":   "benchmark-job-vllm.yaml",
-    "trtllm": "benchmark-job-trtllm.yaml",
     "sglang": "benchmark-job-sglang.yaml",
 }
 
@@ -75,13 +74,6 @@ def _derive_memory(gpu_type: str) -> dict[str, str]:
     return _GPU_MEMORY.get(gpu_type, _MEMORY_DEFAULT)
 
 
-def _engine_cache_key(req: BenchmarkRequest) -> str:
-    """Stable directory name used to cache compiled TRT-LLM engine binaries."""
-    quant = req.quantisation or "none"
-    slug = req.model_id.replace("/", "--")
-    return f"{slug}__{quant}__{req.dtype}__{req.gpu_type}"
-
-
 def render_manifest(req: BenchmarkRequest, engine: str = "vllm") -> dict:
     """Render the Jinja2 Job template and return a parsed dict ready for the K8s API."""
     template = _env.get_template(TEMPLATE_MAP[engine])
@@ -119,9 +111,6 @@ def render_manifest(req: BenchmarkRequest, engine: str = "vllm") -> dict:
         prefix_caching=req.prefix_caching,
         chunked_prefill=req.chunked_prefill,
         flash_attention=req.flash_attention,
-        # TRT-LLM specific
-        batch_scheduler=req.batch_scheduler,
-        cuda_graphs=req.cuda_graphs,
         # Benchmark params
         concurrency=req.concurrency,
         is_sweep=bool(req.concurrency_levels),
@@ -136,12 +125,8 @@ def render_manifest(req: BenchmarkRequest, engine: str = "vllm") -> dict:
         input_tokens_stddev=input_tokens_stddev,
         num_prompts=req.request_count,
         max_seq_len=max_seq_len,
-        engine_cache_key=_engine_cache_key(req),
         memory_request=mem["request"],
         memory_limit=mem["limit"],
         model_cache_pvc=_MODEL_CACHE_PVC,
-        # Always-on TRT-LLM flags
-        gemm_autotuning=True,
-        speculative_decoding=False,
     )
     return yaml.safe_load(rendered)

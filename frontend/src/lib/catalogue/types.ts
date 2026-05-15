@@ -9,10 +9,6 @@ export type QuantType =
 
 export type EngineType = 'trt-llm' | 'vllm' | 'sglang'
 
-export type ArchType = 'dense' | 'moe'
-
-export type LicenceType = 'apache2' | 'mit' | 'llama3' | 'llama2' | 'gated' | 'commercial' | 'other'
-
 export type QualityTier = '70b-class' | '13b-class' | '7b-class'
 
 export interface EnrichedModel {
@@ -20,19 +16,13 @@ export interface EnrichedModel {
   displayName: string
   vendor: string
   family: string
-  archType: ArchType
   paramCountB: number
-  activeParamCountB: number | null  // MoE only
+  activeParamCountB: number | null  // NULL = dense, set = MoE
   qualityTier: QualityTier
-  vramFp16Gb: number
-  vramFp8Gb: number
-  vramNvfp4Gb: number
   supportedQuants: QuantType[]
+  nativeQuant: QuantType            // format the weight files actually are
   ngcContainerTag: string | null
-  licenceType: LicenceType
-  mauLimit: number | null
-  downloadsMonthly: number
-  tags: string[]
+  gated: boolean                    // TRUE = HuggingFace approval required
 }
 
 export interface GPU {
@@ -45,6 +35,7 @@ export interface GPU {
   vllmSupported: boolean
   optionLabel: string    // "Option A", "Option B"
   targetWorkload: string // short description for UI
+  available: boolean     // FALSE = hardware not currently provisioned; UI greys out, server rejects
 }
 
 export interface CompatResult {
@@ -264,10 +255,8 @@ export interface SearchResultItem {
   hfRepoId: string
   displayName: string
   paramCountB: number
-  vramFp16Gb: number
-  downloadsMonthly: number
-  tags: string[]
-  licenceType: LicenceType
-  licenceWarning: string | null
+  vramFp16Gb: number      // derived: paramCountB * 2
+  tags: string[]          // derived from gated/vendor/quants/ngcContainerTag
+  gated: boolean
   compatSummary: string | null  // "✓ Fits RTX Pro 6000" or "⚠ Needs INT4"
 }

@@ -97,7 +97,7 @@ export const useBenchmarkStore = create<BenchmarkState>((set, get) => ({
   requestCount: 100,
   inputTokensMean: 512,
   outputTokensMean: 256,
-  measurementWindow: 120,
+  measurementWindow: 1800,
   islDistribution: 'normal-25',
   backend: 'openai',
   streaming: true,
@@ -134,16 +134,17 @@ export const useBenchmarkStore = create<BenchmarkState>((set, get) => ({
   setSelectedQuant: (quant) => set({ selectedQuant: quant }),
 
   commitModel: (hfRepoId, result) => {
-    const state = get()
-    const quant = result.supportedQuants.includes(state.selectedQuant as QuantType)
-      ? state.selectedQuant
-      : result.supportedQuants[0] ?? null
+    // Model change resets engine + GPU + quant — avoids stale cross-panel
+    // state. Quant defaults to the model's native format (bf16 for base
+    // models, nvfp4 for pre-quantised repos).
     set({
       selectedModelId: hfRepoId,
       deriveResult: result,
       isDeriving: false,
-      selectedQuant: quant,
-      isReadyToRun: !!state.selectedGpuId && !!quant && !!state.selectedEngine,
+      selectedEngine: null,
+      selectedGpuId: null,
+      selectedQuant: result.model.nativeQuant,
+      isReadyToRun: false,
     })
   },
 
