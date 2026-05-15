@@ -146,9 +146,7 @@ kubectl taint node <gpu-node> gpu-benchmark=true:NoSchedule
 
 **How it works:** Loads safetensors directly from the PVC model cache or HF Hub. FP8 is quantized on-the-fly at load time — no pre-quantized weights required.
 
-**Pinned image:** `vllm/vllm-openai:v0.19.0`
-
-**Note on newer architectures:** Models like Gemma 4 require a newer `transformers` version than what ships with vLLM 0.19.0. These use a custom container that patches the `transformers` library.
+**Pinned image:** `vllm/vllm-openai:v0.21.0-cu129`
 
 ### 2.2 TensorRT-LLM — Path A (NGC pre-built)
 
@@ -296,7 +294,7 @@ Templates live in `backend/templates/`. Rendered by `renderer.py` from the `Benc
 
 | Container | Image |
 |---|---|
-| vLLM engine | `vllm/vllm-openai:v0.19.0` |
+| vLLM engine | `vllm/vllm-openai:v0.21.0-cu129` |
 | TRT-LLM engine | `nvcr.io/nvidia/tensorrt-llm/release:1.2.0` |
 | aiperf | `python:3.12-slim` + `pip install aiperf==0.7.0` |
 
@@ -599,7 +597,7 @@ nats stream view JOBS --server <NATS_URL>
 | Job queue | NATS JetStream | Stream: `JOBS` / Subject: `jobs`; payload: `{ job_id }` only |
 | Dead-letter queue | NATS JetStream + Postgres | Stream: `JOBS_DLQ`; table: `job_dlq` |
 | Job controller | Python (asyncpg, kubernetes client, uvicorn) | Consumes NATS, renders Jinja2, submits K8s Jobs |
-| vLLM | `vllm/vllm-openai` | `v0.19.0` — pin this |
+| vLLM | `vllm/vllm-openai` | `v0.21.0-cu129` — pin this |
 | TRT-LLM | `nvcr.io/nvidia/tensorrt-llm/release` | `1.2.0` — pin this |
 | Benchmark tool | `aiperf` (pip) | `0.7.0` |
 | Kubernetes | K8s | ≥ 1.29 (native sidecar `restartPolicy: Always` support) |

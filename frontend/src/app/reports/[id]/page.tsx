@@ -220,7 +220,10 @@ export default function ReportDetailPage() {
 
   // Derived values
   const isTrt      = job?.engine === 'trt-llm'
-  const engineLabel = isTrt ? 'TensorRT-LLM' : 'vLLM'
+  const engineLabel = isTrt ? 'TensorRT-LLM' : job?.engine === 'sglang' ? 'SGLang' : 'vLLM'
+  // Extract the engine version from the image tag captured at submit time
+  // (e.g. "vllm/vllm-openai:v0.21.0-cu129" → "v0.21.0").
+  const engineVersion = job?.engineImage?.split(':')[1]?.split('-')[0] ?? null
   const vramUsedGb  = dcgm?.summary.vram_used_gb.peak ?? 0
   const vramTotalGb = (dcgm?.summary.vram_total_mb ?? 0) / 1024
   const vramPct     = vramTotalGb > 0 ? (vramUsedGb / vramTotalGb) * 100 : 0
@@ -407,6 +410,7 @@ export default function ReportDetailPage() {
                   <div className="px-4 py-3">
                     <KVRow label="Model"        value={<span style={{ fontSize: '12px', textAlign: 'right' }}>{job.modelId}</span>} />
                     <KVRow label="Engine"       value={<EngineBadge engine={job.engine} />} />
+                    {engineVersion && <KVRow label="Engine Version" value={engineVersion} />}
                     <KVRow label="Quantisation" value={job.quantisation?.toUpperCase() ?? '—'} />
                     <KVRow label="dtype"        value={job.dtype} />
                     <KVRow label="Hardware"     value={job.gpuName} />
@@ -449,7 +453,7 @@ export default function ReportDetailPage() {
 
                 {/* Engine configuration */}
                 <Card>
-                  <CardTitle>Engine Config — {engineLabel}</CardTitle>
+                  <CardTitle>Engine Config — {engineLabel}{engineVersion ? ` ${engineVersion}` : ''}</CardTitle>
                   <div className="px-4 py-3">
                     <KVRow label="Max Model Length"    value={`${job.maxModelLen} tokens`} />
                     <KVRow label="Max Batch Size"      value={String(job.maxBatchSize)} />

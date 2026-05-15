@@ -74,7 +74,7 @@ spec:
         # IMPORTANT: Pin the image tag before applying — see header note above.
         # --------------------------------------------------------------------
         - name: sglang-server
-          image: lmsysorg/sglang:v0.5.1-cu126
+          image: lmsysorg/sglang:v0.5.11-cu129
           restartPolicy: Always          # native sidecar — stays running
 
           command: ["python", "-m", "sglang.launch_server"]

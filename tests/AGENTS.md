@@ -53,7 +53,7 @@ Use `GET /api/models/derive?id=<hfRepoId>&gpu=rtx-4000-ada` to get the engine re
 
 - Most models: use `vllm` (default, fastest cold start)
 - Models with `ngcContainerTag` (e.g. Nemotron-Mini): `/derive` still recommends `trt-llm`, but **must be overridden to `vllm`** — the backend renderer has no TRT-LLM template (`_ALLOWED_ENGINES = {"vllm", "sglang"}` in `backend/job_controller/models.py`). A TRT-LLM submission will be rejected by Pydantic and DLQ'd.
-- For structured-generation / lower-latency tests, try `sglang` (image `lmsysorg/sglang:v0.5.1-cu126`).
+- For structured-generation / lower-latency tests, try `sglang` (image `lmsysorg/sglang:v0.5.11-cu129`).
 
 ---
 

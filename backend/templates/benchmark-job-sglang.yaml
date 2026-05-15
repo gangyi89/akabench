@@ -108,7 +108,9 @@ spec:
         # ----------------------------------------------------------------
         # Container 1 — SGLang inference server (sidecar)
         # Image pinned; update the tag to match the tested SGLang release.
-        # Tag format: v{version}-cu{cuda_version}  (e.g. v0.5.1-cu126)
+        # Tag format: v{version}-cu{cuda_version}  (e.g. v0.5.11-cu129). Avoid the
+        # "-runtime" variant — it strips dev extras and accidentally drops the
+        # `distro` Python module required by the bundled openai SDK.
         # ----------------------------------------------------------------
         - name: sglang-server
           image: {{ sglang_image }}

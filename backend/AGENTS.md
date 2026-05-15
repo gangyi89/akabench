@@ -213,7 +213,7 @@ TEMPLATE_MAP = {
 }
 ```
 
-Image tags injected via `_VLLM_IMAGE_OVERRIDES` (Gemma 4 → `gemma4`) and the `sglang_image` template var (`lmsysorg/sglang:v0.5.1-cu126`). Quantisation names are mapped via `_VLLM_QUANT_MAP` and `input_tokens_stddev` is derived from `isl_distribution`.
+Image tags injected via the `vllm_image` and `sglang_image` template variables, sourced from `_VLLM_IMAGE_DEFAULT` (`vllm/vllm-openai:v0.21.0-cu129`) and `_SGLANG_IMAGE_DEFAULT` (`lmsysorg/sglang:v0.5.11-cu129`). Quantisation names are mapped via `_VLLM_QUANT_MAP` and `input_tokens_stddev` is derived from `isl_distribution`.
 
 ---
 
@@ -317,7 +317,7 @@ If either field is missing, add it to the ConfigMap. The DCGM Exporter pod does 
 | `model-cache-pvc` not present on dev cluster | `model_cache_pvc` field on `BenchmarkRequest` defaults to `None` → `emptyDir` |
 | `cat /results/artifacts/*/output.json` glob failed (no subdirectory) | Fixed to `cat /results/artifacts/output.json` |
 | asyncpg returns `UUID` type for job_id in `recover()` | Cast to `str()` in scheduler.py |
-| Gemma 4 requires a newer Transformers than vLLM 0.19.0 ships | `_VLLM_IMAGE_OVERRIDES` swaps in a custom `gemma4` image tag |
+| Gemma 4 needed a newer Transformers than vLLM 0.19.0 shipped | Resolved — vLLM 0.21.0+ bundles a recent enough Transformers, the `_VLLM_IMAGE_OVERRIDES` map was removed |
 
 ## Test Coverage
 

@@ -200,8 +200,8 @@ The controller polls K8s for terminal Job state and writes it to `job_status`. I
 
 | Path | Trigger | What happens |
 |---|---|---|
-| **vLLM** | vLLM selected (default) | Loads safetensors directly from PVC model cache or HF Hub. No compile step. Fastest cold start. Default image `vllm/vllm-openai:v0.19.0`; Gemma 4 models use a custom image with a patched Transformers version. |
-| **SGLang** | SGLang selected | Loads safetensors directly. No compile step. Image `lmsysorg/sglang:v0.5.1-cu126`. |
+| **vLLM** | vLLM selected (default) | Loads safetensors directly from PVC model cache or HF Hub. No compile step. Fastest cold start. Pinned image `vllm/vllm-openai:v0.21.0-cu129` — recent enough to handle Gemma 4 and Qwen 3.5 natively, no per-model overrides. |
+| **SGLang** | SGLang selected | Loads safetensors directly. No compile step. Image `lmsysorg/sglang:v0.5.11-cu129`. |
 | **TRT-LLM** | _Frontend recommends it, backend cannot execute it._ | The renderer has no `trtllm` template and `BenchmarkRequest` rejects engine values outside `{vllm, sglang}`. Any TRT-LLM submission will fail validation in the controller and be written to `job_dlq`. Tests/runbook calls for overriding the recommendation to vLLM. |
 
 Both runnable engines expose `POST /v1/completions` and `GET /health` on port 8000. AIPerf targets `localhost:8000` regardless of engine.
@@ -299,11 +299,11 @@ NGC registry secret is **not** required at present — TRT-LLM is not executable
 
 | Image | Pinned version |
 |---|---|
-| `vllm/vllm-openai` | `v0.19.0` (Gemma 4 overrides to a custom `gemma4` tag — patched Transformers) |
-| `lmsysorg/sglang` | `v0.5.1-cu126` |
+| `vllm/vllm-openai` | `v0.21.0-cu129` |
+| `lmsysorg/sglang` | `v0.5.11-cu129` |
 | `aiperf` (pip package) | `0.7.0` |
 
-Image tags are injected by `renderer.py` (via `_VLLM_IMAGE_OVERRIDES` and the `sglang_image` template variable) — never hand-edit them in the Jinja2 manifests.
+Image tags are injected by `renderer.py` (`_VLLM_IMAGE_DEFAULT` and `_SGLANG_IMAGE_DEFAULT`, passed as `vllm_image` / `sglang_image` template variables) — never hand-edit them in the Jinja2 manifests.
 
 Rationale: upstream images update frequently. Unpinned images break result reproducibility between runs — a cardinal sin for a benchmark tool.
 

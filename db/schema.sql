@@ -91,7 +91,8 @@ CREATE INDEX IF NOT EXISTS job_dlq_job_id_idx ON job_dlq (job_id);
 CREATE TABLE IF NOT EXISTS job_status (
     job_id          UUID        PRIMARY KEY REFERENCES jobs (job_id) ON DELETE CASCADE,
     k8s_job_name    TEXT        NOT NULL,
-    engine          TEXT        NOT NULL,   -- vllm | trtllm
+    engine          TEXT        NOT NULL,   -- vllm | sglang
+    engine_image    TEXT,                   -- full image tag actually used (e.g. vllm/vllm-openai:v0.21.0-cu129)
     status          TEXT        NOT NULL DEFAULT 'pending',  -- pending | running | complete | failed
     error           TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),

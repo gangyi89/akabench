@@ -17,27 +17,21 @@ TEMPLATE_MAP = {
     "sglang": "benchmark-job-sglang.yaml",
 }
 
-# ── vLLM image selection ─────────────────────────────────────────────────────
-# Default image for all models. Override per model prefix where a dedicated
-# image ships with the required transformers version.
-_VLLM_IMAGE_DEFAULT = "vllm/vllm-openai:v0.19.0"
+# ── Engine images ────────────────────────────────────────────────────────────
+# v0.21.0 ships a recent enough transformers to handle Gemma 4 and Qwen 3.5
+# natively — the previous per-model gemma4 override is no longer needed.
+_VLLM_IMAGE_DEFAULT = "vllm/vllm-openai:v0.21.0-cu129"
+_SGLANG_IMAGE_DEFAULT = "lmsysorg/sglang:v0.5.11-cu129"
 
-# ── SGLang image ──────────────────────────────────────────────────────────────
-_SGLANG_IMAGE_DEFAULT = "lmsysorg/sglang:v0.5.1-cu126"
-
-_VLLM_IMAGE_OVERRIDES: list[tuple[str, str]] = [
-    # Gemma 4 requires a newer transformers — use the gemma4-specific image.
-    ("google/gemma-4", "vllm/vllm-openai:gemma4"),
-    ("nvidia/Gemma-4", "vllm/vllm-openai:gemma4"),
-]
+_ENGINE_IMAGES: dict[str, str] = {
+    "vllm":   _VLLM_IMAGE_DEFAULT,
+    "sglang": _SGLANG_IMAGE_DEFAULT,
+}
 
 
-def _vllm_image(model_id: str) -> str:
-    for prefix, image in _VLLM_IMAGE_OVERRIDES:
-        if model_id.startswith(prefix):
-            return image
-    return _VLLM_IMAGE_DEFAULT
-
+def engine_image_for(engine: str) -> str | None:
+    """Return the image tag the renderer will inject for the given engine."""
+    return _ENGINE_IMAGES.get(engine)
 
 
 # ── Quant name translation ────────────────────────────────────────────────────
@@ -95,7 +89,7 @@ def render_manifest(req: BenchmarkRequest, engine: str = "vllm") -> dict:
 
     rendered = template.render(
         # Container images
-        vllm_image=_vllm_image(req.model_id),
+        vllm_image=_VLLM_IMAGE_DEFAULT,
         sglang_image=_SGLANG_IMAGE_DEFAULT,
         # Identity
         job_id=req.job_id,

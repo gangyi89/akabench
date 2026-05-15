@@ -47,7 +47,7 @@ spec:
       initContainers:
 
         - name: vllm-server
-          image: vllm/vllm-openai:v0.19.0
+          image: vllm/vllm-openai:v0.21.0-cu129
           restartPolicy: Always
 
           args:

@@ -125,6 +125,7 @@ export type NatsPayload = {
 
 export type JobDetail = Job & {
   // Engine config
+  engineImage: string | null   // full image tag actually used; null for jobs submitted before this was captured
   dtype: string
   kvCacheDtype: string
   maxModelLen: number

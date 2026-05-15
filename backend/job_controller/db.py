@@ -26,16 +26,17 @@ async def insert_job_status(
     job_id: str,
     k8s_job_name: str,
     engine: str,
+    engine_image: Optional[str] = None,
     status: str = "pending",
     error: Optional[str] = None,
     completed_at: Optional[datetime] = None,
 ) -> None:
     await _pool.execute(
         """
-        INSERT INTO job_status (job_id, k8s_job_name, engine, status, error, completed_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO job_status (job_id, k8s_job_name, engine, engine_image, status, error, completed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         """,
-        job_id, k8s_job_name, engine, status, error, completed_at,
+        job_id, k8s_job_name, engine, engine_image, status, error, completed_at,
     )
 
 

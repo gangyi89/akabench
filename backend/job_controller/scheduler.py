@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from . import db, k8s_client, nats_client, s3_client
 from .models import BenchmarkRequest
-from .renderer import render_manifest
+from .renderer import render_manifest, engine_image_for
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +89,7 @@ async def handle_request(msg) -> None:
             job_id=req.job_id,
             k8s_job_name=k8s_job_name,
             engine=req.engine,
+            engine_image=engine_image_for(req.engine),
         )
         log.info("Submitted K8s Job %s", k8s_job_name)
     except Exception as exc:
@@ -98,6 +99,7 @@ async def handle_request(msg) -> None:
             job_id=req.job_id,
             k8s_job_name=k8s_job_name,
             engine=req.engine,
+            engine_image=engine_image_for(req.engine),
             status="failed",
             error=error_msg,
             completed_at=datetime.now(tz=timezone.utc),

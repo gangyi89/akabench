@@ -111,6 +111,7 @@ export async function listJobs(): Promise<Job[]> {
 }
 
 type JobDetailRow = JobRow & {
+  engineImage: string | null
   dtype: string
   kvCacheDtype: string
   maxModelLen: number
@@ -139,6 +140,7 @@ function rowToJobDetail(row: JobDetailRow): JobDetail {
     : null
   return {
     ...rowToJob(row),
+    engineImage: row.engineImage,
     dtype: row.dtype,
     kvCacheDtype: row.kvCacheDtype,
     maxModelLen: row.maxModelLen,
@@ -228,6 +230,7 @@ export async function getJobDetail(id: string): Promise<JobDetail | null> {
       COALESCE(js.status, 'queued') AS status,
       js.error,
       js.completed_at         AS "completedAt",
+      js.engine_image         AS "engineImage",
       j.dtype,
       j.kv_cache_dtype        AS "kvCacheDtype",
       j.max_model_len         AS "maxModelLen",
