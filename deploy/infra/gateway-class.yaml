@@ -1,0 +1,17 @@
+# GatewayClass referenced by `deploy/app/web.yaml`'s Gateway
+# (gatewayClassName: eg). The Envoy Gateway helm chart deploys the
+# controller pod into `envoy-gateway-system` but does NOT auto-create a
+# GatewayClass — that is intentional, so operators can name the class
+# and scope it themselves. Apply this manifest after installing the
+# envoy-gateway helm chart, otherwise akabench-gateway will sit at
+# PROGRAMMED=Unknown with "no accepted gatewayclass" in the controller
+# logs.
+#
+# Apply with:
+#   kubectl apply -f deploy/infra/gateway-class.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: eg
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller

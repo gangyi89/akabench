@@ -244,9 +244,12 @@ by their respective Helm releases.
 
 #### 1. Envoy Gateway (Gateway API ingress)
 
-Provides the `eg` GatewayClass that `deploy/app/web.yaml` references. Envoy
-Gateway provisions a Service of type `LoadBalancer` per Gateway — on Linode
-that becomes a NodeBalancer with a public IP.
+Deploys the Envoy Gateway controller. The chart does NOT auto-create a
+GatewayClass — that lives at `deploy/infra/gateway-class.yaml` and is
+applied by `make deploy-infra`. `deploy/app/web.yaml` references it as
+`gatewayClassName: eg`. Envoy Gateway provisions a Service of type
+`LoadBalancer` per Gateway — on Linode that becomes a NodeBalancer with
+a public IP.
 
 ```bash
 helm upgrade --install eg oci://docker.io/envoyproxy/gateway-helm \
@@ -309,12 +312,14 @@ psql "$DATABASE_URL" -f db/migrations/0001_seed_models.sql
 # Secrets — populate once.
 # postgres-secrets must carry all three keys: `username` and `password` are
 # read by the postgres Deployment (POSTGRES_USER / POSTGRES_PASSWORD env
-# vars); `database-url` is read by web + job-controller. Keep them in sync.
-kubectl create secret generic postgres-secrets \
-  --from-literal=username=akabench \
+# vars); `database-url` is read by web + job-controller. THE SAME PASSWORD
+# MUST APPEAR IN BOTH `password` AND THE URL — define it once and reuse.
+PG_USER=akabench
+PG_PASS="${PG_PASS:?set PG_PASS before running, e.g.  PG_PASS=\$(openssl rand -hex 16)}"
+kubectl create secret generic postgres-secrets -n default \
+  --from-literal=username="$PG_USER" \
   --from-literal=password="$PG_PASS" \
-  --from-literal=database-url="postgres://akabench:$PG_PASS@postgres:5432/akabench" \
-  -n default
+  --from-literal=database-url="postgres://$PG_USER:$PG_PASS@postgres:5432/akabench"
 kubectl create secret generic web-secrets \
   --from-literal=auth-secret="$(openssl rand -base64 48)" -n default
 kubectl create secret generic object-storage \

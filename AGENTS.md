@@ -279,11 +279,14 @@ kubectl create secret generic web-secrets \
 # All three keys are required:
 #   - username / password — consumed by postgres.yaml as POSTGRES_USER / POSTGRES_PASSWORD
 #   - database-url        — consumed by web.yaml and job-controller.yaml
-kubectl create secret generic postgres-secrets \
-  --from-literal=username=akabench \
-  --from-literal=password='<PW>' \
-  --from-literal=database-url='postgres://akabench:<PW>@postgres:5432/akabench' \
-  --namespace default
+# The password value MUST be identical in `password` and inside `database-url`.
+# Define it once in a shell var and reuse — never hand-edit the URL.
+PG_USER=akabench
+PG_PASS="${PG_PASS:?set PG_PASS before running}"
+kubectl create secret generic postgres-secrets --namespace default \
+  --from-literal=username="$PG_USER" \
+  --from-literal=password="$PG_PASS" \
+  --from-literal=database-url="postgres://$PG_USER:$PG_PASS@postgres:5432/akabench"
 ```
 
 NGC registry secret is **not** required at present — TRT-LLM is not executable.

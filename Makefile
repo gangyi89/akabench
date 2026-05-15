@@ -61,6 +61,7 @@ release: build push
 deploy-infra:
 	kubectl apply -f deploy/infra/postgres.yaml
 	kubectl apply -f deploy/infra/nats.yaml
+	kubectl apply -f deploy/infra/gateway-class.yaml
 
 # ---------------------------------------------------------------------------
 # Deploy application (idempotent)
