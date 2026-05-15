@@ -5,6 +5,12 @@ metadata:
   namespace: default
 spec:
   replicas: 1           # must be 1 — multiple replicas would double-submit jobs
+  # Kill the old pod before starting the new one. RollingUpdate would
+  # have two pods alive briefly, and they'd race for the NATS durable
+  # consumer "job-controller" — only one subscriber per durable is
+  # allowed, so the new pod CrashLoops and rollout deadlocks.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: job-controller
