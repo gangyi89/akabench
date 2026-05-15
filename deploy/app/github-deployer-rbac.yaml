@@ -1,0 +1,65 @@
+# Service account used by the GitHub Actions deploy workflow to roll
+# the `web` and `job-controller` Deployments to a new image tag.
+#
+# Scope: patch + get on those two Deployments only, plus read on
+# replicasets/pods so `kubectl rollout status` can track progress.
+# Cannot delete, cannot read secrets, cannot touch other workloads.
+#
+# Apply with:
+#   kubectl apply -f deploy/app/github-deployer-rbac.yaml
+#
+# Then generate the kubeconfig (see README / workflow header) and stash
+# it in the repo's GitHub Actions secret KUBE_CONFIG_PROD.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-deployer
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: github-deployer
+  namespace: default
+rules:
+  # Image swap on the two Deployments only — name-scoped.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["web", "job-controller"]
+    verbs: ["get", "patch"]
+  # kubectl rollout status needs to read replicaset + pod state.
+  # list/watch verbs cannot be name-scoped, so these are namespace-wide
+  # but read-only.
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-deployer
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: github-deployer
+    namespace: default
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: github-deployer
+---
+# Long-lived token for the SA. K8s 1.24+ no longer auto-creates this —
+# we declare it explicitly and bind it to the SA via annotation.
+# Rotate by deleting and re-applying this Secret, then regenerate the
+# kubeconfig in the GitHub Actions secret.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-deployer-token
+  namespace: default
+  annotations:
+    kubernetes.io/service-account.name: github-deployer
+type: kubernetes.io/service-account-token

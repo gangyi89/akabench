@@ -1,0 +1,116 @@
+# Manual production deploy.
+#
+# Prerequisites (one-time setup):
+#   1. Apply RBAC:
+#        kubectl apply -f deploy/app/github-deployer-rbac.yaml
+#
+#   2. Generate the kubeconfig from the github-deployer SA's token:
+#        SA_TOKEN=$(kubectl get secret github-deployer-token -n default \
+#          -o jsonpath='{.data.token}' | base64 -d)
+#        CA_DATA=$(kubectl get secret github-deployer-token -n default \
+#          -o jsonpath='{.data.ca\.crt}')
+#        SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+#
+#        cat <<EOF > /tmp/github-deployer.kubeconfig
+#        apiVersion: v1
+#        kind: Config
+#        clusters:
+#          - name: akabench
+#            cluster:
+#              server: $SERVER
+#              certificate-authority-data: $CA_DATA
+#        users:
+#          - name: github-deployer
+#            user:
+#              token: $SA_TOKEN
+#        contexts:
+#          - name: github-deployer
+#            context:
+#              cluster: akabench
+#              user: github-deployer
+#              namespace: default
+#        current-context: github-deployer
+#        EOF
+#
+#   3. Base64-encode and add to GitHub:
+#        base64 -i /tmp/github-deployer.kubeconfig | pbcopy
+#      Repo → Settings → Secrets and variables → Actions → New secret:
+#        Name:  KUBE_CONFIG_PROD
+#        Value: <paste>
+#
+#   4. Configure the approval gate:
+#      Repo → Settings → Environments → New environment "production".
+#      Add yourself as a required reviewer. The workflow's
+#      `environment: production` clause then blocks until approved.
+
+name: Deploy to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Short SHA to deploy (matches the tag published by docker-publish.yml — e.g. "ebdc53e")'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Validate SHA
+        run: |
+          if ! [[ "${{ inputs.sha }}" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "::error::Invalid SHA '${{ inputs.sha }}' — expected 7–40 hex chars"
+            exit 1
+          fi
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Confirm scope (read-only sanity check)
+        run: |
+          kubectl auth can-i patch deployment/web -n default
+          kubectl auth can-i patch deployment/job-controller -n default
+          # Negative check — must NOT be able to delete:
+          if kubectl auth can-i delete deployment/web -n default 2>/dev/null | grep -q '^yes'; then
+            echo "::error::Deploy SA has delete permission — RBAC scope is too wide"
+            exit 1
+          fi
+
+      - name: Roll web → ${{ inputs.sha }}
+        run: |
+          kubectl set image -n default deployment/web \
+            web=docker.io/gangyi89/akabench-web:${{ inputs.sha }}
+
+      - name: Roll job-controller → ${{ inputs.sha }}
+        run: |
+          kubectl set image -n default deployment/job-controller \
+            job-controller=docker.io/gangyi89/akabench-job-controller:${{ inputs.sha }}
+
+      - name: Wait for web rollout
+        run: kubectl rollout status -n default deployment/web --timeout=5m
+
+      - name: Wait for job-controller rollout
+        run: kubectl rollout status -n default deployment/job-controller --timeout=5m
+
+      - name: Summary
+        run: |
+          {
+            echo "## Deployed to production"
+            echo ""
+            echo "| Component | Image |"
+            echo "|---|---|"
+            echo "| web | \`docker.io/gangyi89/akabench-web:${{ inputs.sha }}\` |"
+            echo "| job-controller | \`docker.io/gangyi89/akabench-job-controller:${{ inputs.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
