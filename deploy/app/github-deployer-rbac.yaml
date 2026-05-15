@@ -22,16 +22,19 @@ metadata:
   name: github-deployer
   namespace: default
 rules:
-  # Image swap on the two Deployments only — name-scoped.
+  # Image swap on the two Deployments only — name-scoped (patch is the
+  # only verb that respects resourceNames, so this restricts mutations
+  # to web + job-controller).
   - apiGroups: ["apps"]
     resources: ["deployments"]
     resourceNames: ["web", "job-controller"]
-    verbs: ["get", "patch"]
-  # kubectl rollout status needs to read replicaset + pod state.
-  # list/watch verbs cannot be name-scoped, so these are namespace-wide
-  # but read-only.
+    verbs: ["patch"]
+  # kubectl rollout status watches the deployment plus its replicasets
+  # and pods. list/watch can't be name-scoped, so these are namespace-wide
+  # but read-only — the blast radius is "can see all deployments in
+  # default," nothing more.
   - apiGroups: ["apps"]
-    resources: ["replicasets"]
+    resources: ["deployments", "replicasets"]
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["pods"]
