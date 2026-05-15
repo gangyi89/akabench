@@ -17,7 +17,7 @@ spec:
 
       containers:
         - name: job-controller
-          image: registry.akamai.internal/akabench/job-controller:latest   # replaced by `make release`
+          image: docker.io/gangyi89/akabench-job-controller:latest   # tag updated per release; CI publishes :<short-sha> on push to main
           ports:
             - containerPort: 8080
               name: http

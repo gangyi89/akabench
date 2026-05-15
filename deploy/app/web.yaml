@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: registry.akamai.internal/akabench/web:latest   # replaced by `make release`
+          image: docker.io/gangyi89/akabench-web:latest   # tag updated per release; CI publishes :<short-sha> on push to main
           ports:
             - containerPort: 3000
               name: http

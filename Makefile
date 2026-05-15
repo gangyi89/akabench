@@ -1,8 +1,8 @@
-REGISTRY   ?= registry.akamai.internal/akabench
+REGISTRY   ?= docker.io/gangyi89
 SHA        := $(shell git rev-parse --short HEAD)
 
-JOB_CONTROLLER_IMAGE := $(REGISTRY)/job-controller:$(SHA)
-WEB_IMAGE            := $(REGISTRY)/web:$(SHA)
+JOB_CONTROLLER_IMAGE := $(REGISTRY)/akabench-job-controller:$(SHA)
+WEB_IMAGE            := $(REGISTRY)/akabench-web:$(SHA)
 
 # ---------------------------------------------------------------------------
 # Build
