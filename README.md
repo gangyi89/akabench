@@ -250,7 +250,7 @@ that becomes a NodeBalancer with a public IP.
 
 ```bash
 helm upgrade --install eg oci://docker.io/envoyproxy/gateway-helm \
-  --version v1.2.0 \
+  --version v1.8.0 \
   --namespace envoy-gateway-system --create-namespace
 ```
 
