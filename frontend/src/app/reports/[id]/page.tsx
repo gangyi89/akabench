@@ -223,8 +223,25 @@ export default function ReportDetailPage() {
     }
     router.push('/reports?deleted=1')
   }
-  const backHref  = from === 'jobs' ? `/jobs/${id}` : `/reports${tab ? `?tab=${tab}` : ''}`
   const backLabel = from === 'jobs' ? '← Back to Job' : '← Back to Reports'
+
+  function handleBack() {
+    if (from === 'jobs') {
+      // Direct link to the originating job — no history dependence so a
+      // refresh-then-back still works.
+      router.push(`/jobs/${id}`)
+      return
+    }
+    // For from=reports (default), use history-back so the listing's
+    // search / engine / hardware / tab filters are preserved exactly as
+    // the user left them. Fall back to /reports if there's no history
+    // (e.g. user opened this report in a new tab).
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+    } else {
+      router.push(`/reports${tab ? `?tab=${tab}` : ''}`)
+    }
+  }
   const { data, error, isLoading } = useSWR<ReportData>(
     id ? `/api/reports/${id}` : null,
     fetcher,
@@ -269,14 +286,15 @@ export default function ReportDetailPage() {
       <TopNav active="reports" />
 
       <main className="flex-1 p-6 max-w-[1400px] mx-auto w-full">
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1 mb-4 text-[13px] font-semibold"
+        <button
+          type="button"
+          onClick={handleBack}
+          className="inline-flex items-center gap-1 mb-4 text-[13px] font-semibold cursor-pointer bg-transparent border-0 p-0"
           style={{ color: 'var(--aka-gray-500)' }}
           data-print-hide
         >
           {backLabel}
-        </Link>
+        </button>
 
         {isLoading && <Spinner />}
         {error && (

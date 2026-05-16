@@ -104,17 +104,31 @@ function ReportsContent() {
     await mutate()
   }
 
+  // Hydrate filter state from URL on first render so navigating back from a
+  // report detail (via the in-app link or browser back) restores the user's
+  // search + filters.
   const [activeTab, setActiveTab] = useState<'individual' | 'sweep'>(
     searchParams.get('tab') === 'sweep' ? 'sweep' : 'individual'
   )
+  const [search,   setSearch]   = useState(searchParams.get('search')   ?? '')
+  const [engine,   setEngine]   = useState(searchParams.get('engine')   ?? '')
+  const [hardware, setHardware] = useState(searchParams.get('hardware') ?? '')
 
-  function switchTab(tab: 'individual' | 'sweep') {
-    setActiveTab(tab)
-    router.replace(`/reports?tab=${tab}`, { scroll: false })
-  }
-  const [search,  setSearch]  = useState('')
-  const [engine,  setEngine]  = useState('')
-  const [hardware, setHardware] = useState('')
+  function switchTab(tab: 'individual' | 'sweep') { setActiveTab(tab) }
+
+  // Mirror filter state back into the URL so browser history (and the "Back
+  // to Reports" link on the detail page) returns the user to exactly the
+  // same view. `router.replace` keeps the entry from polluting browser
+  // history while typing in the search box.
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (activeTab === 'sweep') params.set('tab', 'sweep')
+    if (search)   params.set('search',   search)
+    if (engine)   params.set('engine',   engine)
+    if (hardware) params.set('hardware', hardware)
+    const qs = params.toString()
+    router.replace(`/reports${qs ? `?${qs}` : ''}`, { scroll: false })
+  }, [activeTab, search, engine, hardware, router])
 
   const allReports = useMemo(() => data?.reports ?? [], [data?.reports])
 
