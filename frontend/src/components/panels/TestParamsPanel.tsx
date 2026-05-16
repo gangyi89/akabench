@@ -492,8 +492,8 @@ export default function TestParamsPanel() {
                       Each level runs (VUs × this) requests. NVIDIA recommends 3
                       for stable steady-state, 10 is the historical default. */}
                   <SliderParam
-                    label="Requests per VU"
-                    sublabel="Each sweep step sends (VUs × this many) requests"
+                    label="Requests per Virtual User"
+                    sublabel="Each sweep step sends (Virtual Users × this many) requests"
                     hint="Range: 3 – 30 · NVIDIA recommends 3"
                     value={sweepRequestMultiplier}
                     min={3}
