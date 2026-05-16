@@ -19,7 +19,7 @@ function LandingPageInner() {
   const closeModal = () => setModalOpen(false)
 
   const fromParam = searchParams.get('from')
-  const destination = fromParam && fromParam.startsWith('/') ? fromParam : '/portal'
+  const destination = fromParam && fromParam.startsWith('/') ? fromParam : '/configure'
 
   function handleLoginSuccess() {
     setLoginOpen(false)
@@ -41,7 +41,7 @@ function LandingPageInner() {
             <div className="nav-wordmark">AKA<span>bench</span></div>
           </Link>
           <div className="nav-actions">
-            <a className="btn-nav-cta" href="/portal" onClick={handleOpenPortal}>Sign In →</a>
+            <a className="btn-nav-cta" href="/configure" onClick={handleOpenPortal}>Sign In →</a>
           </div>
         </div>
       </nav>
@@ -56,7 +56,7 @@ function LandingPageInner() {
             Purpose-built for Akamai field teams.
           </p>
           <div className="hero-cta-group">
-            <a className="hero-cta" href="/portal" onClick={handleOpenPortal}>Sign In →</a>
+            <a className="hero-cta" href="/configure" onClick={handleOpenPortal}>Sign In →</a>
             <p className="hero-cta-note">
               Don&apos;t have an account?{' '}
               <button type="button" className="hero-cta-link" onClick={openModal}>Request access</button>

@@ -128,7 +128,7 @@ export default function LoginModal({ onClose, onSuccess, onRequestAccess }: Prop
           <button
             type="submit"
             disabled={submitting || !username || !password}
-            className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[14px] font-bold text-white cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             style={{
               background: 'var(--aka-blue)',
               boxShadow: '0 4px 14px rgba(0,155,222,0.35)',
@@ -146,7 +146,7 @@ export default function LoginModal({ onClose, onSuccess, onRequestAccess }: Prop
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-lg px-4 py-2 text-[13px] font-semibold disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-[13px] font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             style={{ color: 'var(--aka-gray-500)' }}
           >
             Cancel

@@ -276,7 +276,7 @@ function ReportsContent() {
                     <tr>
                       <td colSpan={HEADERS.length} className="px-4 py-12 text-center text-[14px]" style={{ color: 'var(--aka-gray-400)' }}>
                         No completed benchmarks yet.{' '}
-                        <Link href="/portal" style={{ color: 'var(--aka-blue)' }}>Run your first benchmark →</Link>
+                        <Link href="/configure" style={{ color: 'var(--aka-blue)' }}>Run your first benchmark →</Link>
                       </td>
                     </tr>
                   ) : (() => {

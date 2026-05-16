@@ -34,7 +34,7 @@ akabench/
 │       ├── app/
 │       │   ├── page.tsx               # Landing page (marketing + LoginModal entry)
 │       │   ├── landing.css            # Landing-page-only styles
-│       │   ├── portal/page.tsx        # Configure wizard (4-panel layout, auth-gated)
+│       │   ├── configure/page.tsx     # Configure wizard (4-panel layout, auth-gated)
 │       │   ├── jobs/page.tsx          # Jobs list (SWR 5s refresh)
 │       │   ├── jobs/[id]/page.tsx     # Job detail (logs + report download)
 │       │   ├── reports/page.tsx       # Reports list
@@ -55,7 +55,7 @@ akabench/
 │       │       └── reports/
 │       │           ├── route.ts               # GET /api/reports
 │       │           └── [id]/route.ts          # GET /api/reports/:id
-│       ├── proxy.ts                   # Next.js middleware — auth gate (matches /portal, /jobs, /reports, protected APIs)
+│       ├── proxy.ts                   # Next.js middleware — auth gate (matches /configure, /jobs, /reports, protected APIs)
 │       ├── components/
 │       │   ├── ui/                    # shadcn/ui — do not hand-edit
 │       │   ├── panels/                # ModelPanel, EngineQuantPanel, HardwarePanel, TestParamsPanel

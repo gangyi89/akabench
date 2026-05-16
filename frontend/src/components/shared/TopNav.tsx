@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 type ActivePage = 'configure' | 'jobs' | 'reports'
 
 const NAV_LINKS: { href: string; label: string; key: ActivePage }[] = [
-  { href: '/portal',  label: 'Configure', key: 'configure' },
+  { href: '/configure', label: 'Configure', key: 'configure' },
   { href: '/jobs',    label: 'Jobs',      key: 'jobs'      },
   { href: '/reports', label: 'Reports',   key: 'reports'   },
 ]

@@ -29,11 +29,11 @@ This is the authoritative guide for all work inside the `frontend/` directory. R
 
 ```
 src/
-├── proxy.ts                            # Next.js middleware — auth gate (matches /portal, /jobs, /reports, protected APIs)
+├── proxy.ts                            # Next.js middleware — auth gate (matches /configure, /jobs, /reports, protected APIs)
 ├── app/
 │   ├── page.tsx                        # Landing page (marketing + LoginModal entry)
 │   ├── landing.css                     # Landing-page-only styles
-│   ├── portal/
+│   ├── configure/
 │   │   └── page.tsx                    # Configure wizard (4-panel layout + action bar)
 │   ├── jobs/
 │   │   ├── page.tsx                    # Jobs list (SWR 5s refresh)
@@ -275,9 +275,9 @@ nats stream view JOBS --server <NATS_URL>
 
 - Marketing hero + "Sign In" CTA — public (no auth required)
 - Shows `LoginModal` on mount when URL has `?login=1` (set by middleware redirect)
-- On successful login: redirects to `?from=<path>` if present, otherwise `/portal`
+- On successful login: redirects to `?from=<path>` if present, otherwise `/configure`
 
-## Portal Page (`app/portal/page.tsx`)
+## Configure Page (`app/configure/page.tsx`)
 
 **Layout (auth-gated by `proxy.ts`):**
 - Sticky top nav: branding, Configure/Jobs/Reports tabs, "Internal Only" badge, user chip
@@ -302,7 +302,7 @@ nats stream view JOBS --server <NATS_URL>
 - Engine badges: TRT-LLM=blue, vLLM=green, SGLang=purple
 - Relative timestamps: "just now" / "5 min ago" / "2 hr ago" / "3 days ago"
 - Empty state when no jobs exist
-- "+ New Benchmark" → `router.push('/portal')`
+- "+ New Benchmark" → `router.push('/configure')`
 - Detail page shows job parameters, tabbed access to engine + aiperf logs (via `/api/jobs/:id/logs`) and download buttons for aiperf/dcgm result files (via `/api/jobs/:id/report` presigned URLs).
 
 ## Reports Page (`app/reports/page.tsx` + `app/reports/[id]/page.tsx`)
@@ -405,7 +405,7 @@ Run from `frontend/`. Commit generated `src/components/ui/` files unchanged.
 - **Mechanism:** HMAC-SHA256 signed session token stored in `aka_session` cookie (HttpOnly, `SameSite=Lax`, 12 h TTL). No JWT, no external IdP.
 - **Token shape:** `base64url(JSON.stringify({ username, exp })) + '.' + base64url(HMAC-SHA256(...))`
 - **Verification:** `proxy.ts` (Next.js middleware) runs on every matched route, calls `verifySessionToken()`, returns 401 JSON for `/api/*` or 302 redirect to `/?login=1&from=<path>` for HTML routes.
-- **Matched routes:** `/portal/*`, `/jobs/*`, `/reports/*`, `/api/jobs/*`, `/api/reports/*`, `/api/hardware/*`, `/api/models/*`. `/api/auth/*` and `/` are exempt.
+- **Matched routes:** `/configure/*`, `/jobs/*`, `/reports/*`, `/api/jobs/*`, `/api/reports/*`, `/api/hardware/*`, `/api/models/*`. `/api/auth/*` and `/` are exempt.
 - **User base:** Hardcoded list in `lib/auth/users.ts` (currently one account: `akamai` / `akabench`, displayName `Akamai`). Passwords are compared with `timingSafeEqual`. SSO is not in scope — see root AGENTS.md.
 
 The HMAC key comes from `AUTH_SECRET` (required in production; falls back to a dev key when unset).
