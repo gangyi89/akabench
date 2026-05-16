@@ -19,7 +19,8 @@ interface BenchmarkState {
   concurrency: number
   sweepEnabled: boolean
   concurrencyLevels: number[]
-  requestCount: number
+  requestCount: number              // literal total requests — single-run mode
+  sweepRequestMultiplier: number    // requests per VU per sweep step — sweep mode
   inputTokensMean: number
   outputTokensMean: number
   measurementWindow: number
@@ -59,6 +60,7 @@ interface BenchmarkState {
   setSweepEnabled: (v: boolean) => void
   setConcurrencyLevels: (v: number[]) => void
   setRequestCount: (v: number) => void
+  setSweepRequestMultiplier: (v: number) => void
   setInputTokensMean: (v: number) => void
   setOutputTokensMean: (v: number) => void
   setMeasurementWindow: (v: number) => void
@@ -95,9 +97,10 @@ export const useBenchmarkStore = create<BenchmarkState>((set, get) => ({
   sweepEnabled: false,
   concurrencyLevels: [1, 2, 5, 10, 50, 100, 250],
   requestCount: 100,
+  sweepRequestMultiplier: 10,
   inputTokensMean: 512,
   outputTokensMean: 256,
-  measurementWindow: 1800,
+  measurementWindow: 300,
   islDistribution: 'normal-25',
   backend: 'openai',
   streaming: true,
@@ -175,6 +178,7 @@ export const useBenchmarkStore = create<BenchmarkState>((set, get) => ({
   setSweepEnabled:     (v) => set({ sweepEnabled: v }),
   setConcurrencyLevels:(v) => set({ concurrencyLevels: v }),
   setRequestCount:     (v) => set({ requestCount: v }),
+  setSweepRequestMultiplier: (v) => set({ sweepRequestMultiplier: v }),
   setInputTokensMean:  (v) => set({ inputTokensMean: v }),
   setOutputTokensMean: (v) => set({ outputTokensMean: v }),
   setMeasurementWindow:(v) => set({ measurementWindow: v }),

@@ -30,7 +30,7 @@ export async function insertJob(job: Job, params: JobSubmitRequest, dtype: strin
       ${params.inputTokensMean  ?? 512},
       ${params.outputTokensMean ?? 256}, ${params.requestCount     ?? 100},
       ${params.streaming        ?? true},
-      ${params.measurementWindow ?? 1800}, ${params.islDistribution ?? 'normal-25'}, ${params.backend ?? 'openai'},
+      ${params.measurementWindow ?? 300}, ${params.islDistribution ?? 'normal-25'}, ${params.backend ?? 'openai'},
       ${params.maxModelLen       ?? 2048}, ${params.gpuMemoryUtil  ?? 0.90},
       ${params.maxBatchSize      ?? 64},
       ${params.prefixCaching     ?? true}, ${params.chunkedPrefill ?? true},

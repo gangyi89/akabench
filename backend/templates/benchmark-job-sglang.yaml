@@ -414,7 +414,7 @@ spec:
                   --endpoint-type chat \
                   --tokenizer "{{ model_id }}" \
                   --concurrency "${CONC}" \
-                  --request-count "$(( CONC * 10 ))" \
+                  --request-count "$(( CONC * {{ request_count }} ))" \
                   --isl "{{ input_tokens_mean }}" \
                   --isl-stddev "{{ input_tokens_stddev }}" \
                   --osl "{{ output_tokens_mean }}" \

@@ -17,6 +17,23 @@ function tagStyle(tag: string) {
   return TAG_STYLES[tag] ?? 'border-[#e5e7eb] text-[#6b7280] bg-[#f3f4f6]'
 }
 
+// ── Parameter-size filter buckets ───────────────────────────────────────────
+// Industry-standard "size classes" — keeps the dropdown short and meaningful.
+
+type SizeBucket = '' | 'tiny' | 'small' | 'mid' | 'large' | 'xl'
+
+const SIZE_BUCKETS: { value: Exclude<SizeBucket, ''>; label: string; matches: (n: number) => boolean }[] = [
+  { value: 'tiny',  label: '≤ 3B',   matches: n => n <= 3 },
+  { value: 'small', label: '3–9B',   matches: n => n > 3  && n <= 9 },
+  { value: 'mid',   label: '9–20B',  matches: n => n > 9  && n <= 20 },
+  { value: 'large', label: '20–50B', matches: n => n > 20 && n <= 50 },
+  { value: 'xl',    label: '> 50B',  matches: n => n > 50 },
+]
+
+function bucketOf(paramCountB: number): SizeBucket {
+  return SIZE_BUCKETS.find(b => b.matches(paramCountB))?.value ?? ''
+}
+
 const PANEL_STYLE = {
   background: '#fff',
   borderRadius: '8px',
@@ -42,6 +59,8 @@ export default function ModelPanel() {
   const [isSearching, setIsSearching] = useState(false)
   const [availableFamilies, setAvailableFamilies] = useState<string[]>([])
   const [selectedFamily, setSelectedFamily] = useState<string>('')
+  const [availableBuckets, setAvailableBuckets] = useState<Set<SizeBucket>>(new Set())
+  const [selectedBucket, setSelectedBucket] = useState<SizeBucket>('')
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -83,20 +102,26 @@ export default function ModelPanel() {
       const res = await fetch(`/api/models/search?q=${encodeURIComponent(q)}`)
       const data = await res.json() as { results: SearchResultItem[] }
       setResults(data.results)
-      // Seed the family dropdown once from the initial (unfiltered) fetch so
-      // its options don't shrink as the user types in the search box.
+      // Seed the family + size-bucket dropdowns once from the initial
+      // (unfiltered) fetch so their options don't shrink as the user types.
       setAvailableFamilies(prev => {
         if (prev.length > 0) return prev
         return [...new Set(data.results.map(r => r.family))].sort()
+      })
+      setAvailableBuckets(prev => {
+        if (prev.size > 0) return prev
+        return new Set(data.results.map(r => bucketOf(r.paramCountB)))
       })
     } finally {
       setIsSearching(false)
     }
   }
 
-  const visibleResults = selectedFamily
-    ? results.filter(r => r.family === selectedFamily)
-    : results
+  const visibleResults = results.filter(r => {
+    if (selectedFamily && r.family !== selectedFamily) return false
+    if (selectedBucket && bucketOf(r.paramCountB) !== selectedBucket) return false
+    return true
+  })
 
   const fetchDerive = useCallback(async (modelId: string, gpuId: string | null) => {
     setIsDeriving(true)
@@ -199,6 +224,24 @@ export default function ModelPanel() {
             <option value="">All series</option>
             {availableFamilies.map(f => (
               <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+          <select
+            value={selectedBucket}
+            onChange={e => setSelectedBucket(e.target.value as SizeBucket)}
+            className="rounded-md px-2 py-2 outline-none cursor-pointer"
+            style={{
+              fontSize: '13px',
+              border: '1px solid var(--aka-gray-300)',
+              background: selectedBucket ? 'var(--aka-light)' : '#fff',
+              color: 'var(--aka-gray-700)',
+              minWidth: '110px',
+            }}
+            title="Filter by parameter count"
+          >
+            <option value="">Any size</option>
+            {SIZE_BUCKETS.filter(b => availableBuckets.has(b.value)).map(b => (
+              <option key={b.value} value={b.value}>{b.label}</option>
             ))}
           </select>
         </div>

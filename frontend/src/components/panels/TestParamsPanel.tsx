@@ -272,6 +272,7 @@ export default function TestParamsPanel() {
     sweepEnabled, setSweepEnabled,
     concurrencyLevels, setConcurrencyLevels,
     requestCount, setRequestCount,
+    sweepRequestMultiplier, setSweepRequestMultiplier,
     inputTokensMean, setInputTokensMean,
     outputTokensMean, setOutputTokensMean,
     islDistribution, setIslDistribution,
@@ -415,112 +416,127 @@ export default function TestParamsPanel() {
               />
 
               {sweepEnabled ? (
-                <ParamGroup>
-                  <ParamLabel>Virtual User Steps</ParamLabel>
-                  <ParamSublabel>One run per step — model loads once, each step adds a point to the graph</ParamSublabel>
-                  {/* Chip list */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                    {concurrencyLevels.map(c => (
-                      <span
-                        key={c}
+                <>
+                  <ParamGroup>
+                    <ParamLabel>Virtual User Steps</ParamLabel>
+                    <ParamSublabel>One run per step — model loads once, each step adds a point to the graph</ParamSublabel>
+                    {/* Chip list */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                      {concurrencyLevels.map(c => (
+                        <span
+                          key={c}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            background: 'rgba(0,155,222,.1)',
+                            color: 'var(--aka-blue)',
+                            border: '1px solid rgba(0,155,222,.25)',
+                          }}
+                        >
+                          {c}
+                          <button
+                            type="button"
+                            onClick={() => setConcurrencyLevels(concurrencyLevels.filter(v => v !== c))}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--aka-blue)', lineHeight: 1, fontSize: '14px' }}
+                            aria-label={`Remove ${c}`}
+                          >×</button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        placeholder="Add values…"
+                        value={sweepInput}
+                        onChange={e => setSweepInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commitSweepInput(sweepInput) } }}
+                        onBlur={() => { if (sweepInput.trim()) commitSweepInput(sweepInput) }}
                         style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '2px 8px',
-                          borderRadius: '4px',
+                          border: 'none',
+                          outline: 'none',
                           fontSize: '12px',
+                          color: 'var(--aka-gray-800)',
+                          background: 'transparent',
+                          width: '80px',
+                        }}
+                      />
+                    </div>
+                    {/* Preset + count */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setConcurrencyLevels([1, 2, 5, 10, 50, 100, 250])}
+                        style={{
+                          fontSize: '11px',
                           fontWeight: 600,
-                          background: 'rgba(0,155,222,.1)',
                           color: 'var(--aka-blue)',
-                          border: '1px solid rgba(0,155,222,.25)',
+                          background: 'none',
+                          border: '1px solid var(--aka-blue)',
+                          borderRadius: '4px',
+                          padding: '2px 7px',
+                          cursor: 'pointer',
                         }}
                       >
-                        {c}
-                        <button
-                          type="button"
-                          onClick={() => setConcurrencyLevels(concurrencyLevels.filter(v => v !== c))}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--aka-blue)', lineHeight: 1, fontSize: '14px' }}
-                          aria-label={`Remove ${c}`}
-                        >×</button>
+                        NVIDIA steps
+                      </button>
+                      <span style={{ fontSize: '11px', color: 'var(--aka-gray-400)' }}>
+                        {concurrencyLevels.length} data point{concurrencyLevels.length !== 1 ? 's' : ''} on the graph
                       </span>
-                    ))}
-                    <input
-                      type="text"
-                      placeholder="Add values…"
-                      value={sweepInput}
-                      onChange={e => setSweepInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commitSweepInput(sweepInput) } }}
-                      onBlur={() => { if (sweepInput.trim()) commitSweepInput(sweepInput) }}
-                      style={{
-                        border: 'none',
-                        outline: 'none',
-                        fontSize: '12px',
-                        color: 'var(--aka-gray-800)',
-                        background: 'transparent',
-                        width: '80px',
-                      }}
-                    />
-                  </div>
-                  {/* Preset + count */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setConcurrencyLevels([1, 2, 5, 10, 50, 100, 250])}
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: 'var(--aka-blue)',
-                        background: 'none',
-                        border: '1px solid var(--aka-blue)',
-                        borderRadius: '4px',
-                        padding: '2px 7px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      NVIDIA steps
-                    </button>
-                    <span style={{ fontSize: '11px', color: 'var(--aka-gray-400)' }}>
-                      {concurrencyLevels.length} data point{concurrencyLevels.length !== 1 ? 's' : ''} on the graph
-                    </span>
-                  </div>
-                </ParamGroup>
+                    </div>
+                  </ParamGroup>
+
+                  {/* Per-step request multiplier — sweep only.
+                      Each level runs (VUs × this) requests. NVIDIA recommends 3
+                      for stable steady-state, 10 is the historical default. */}
+                  <SliderParam
+                    label="Requests per VU"
+                    sublabel="Each sweep step sends (VUs × this many) requests"
+                    hint="Range: 3 – 30 · NVIDIA recommends 3"
+                    value={sweepRequestMultiplier}
+                    min={3}
+                    max={30}
+                    step={1}
+                    display={String(sweepRequestMultiplier)}
+                    onChange={setSweepRequestMultiplier}
+                  />
+                </>
               ) : (
-                <SliderParam
-                  label="Virtual Users"
-                  sublabel="Parallel simulated sessions"
-                  hint="Range: 1 – 256"
-                  value={concurrency}
-                  min={1}
-                  max={256}
-                  display={String(concurrency)}
-                  onChange={setConcurrency}
-                />
+                <>
+                  <SliderParam
+                    label="Virtual Users"
+                    sublabel="Parallel simulated sessions"
+                    hint="Range: 1 – 256"
+                    value={concurrency}
+                    min={1}
+                    max={256}
+                    display={String(concurrency)}
+                    onChange={setConcurrency}
+                  />
+                  <SliderParam
+                    label="Request Count"
+                    sublabel="Total requests to send during the benchmark"
+                    hint="Range: 3 – 2000"
+                    value={requestCount}
+                    min={3}
+                    max={2000}
+                    step={1}
+                    display={String(requestCount)}
+                    onChange={setRequestCount}
+                  />
+                </>
               )}
 
-              {/* Options — greyed out when graph benchmark is on */}
+              {/* Options — applies to both single and sweep runs. */}
               <div style={{
                 gridColumn: '1 / -1',
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '20px 24px',
-                opacity: sweepEnabled ? 0.35 : 1,
-                pointerEvents: sweepEnabled ? 'none' : 'auto',
-                transition: 'opacity .15s',
               }}>
                 <SectionTitle>Options</SectionTitle>
-
-                <SliderParam
-                  label="Request Count"
-                  sublabel={sweepEnabled ? 'Auto-set to 10× virtual users per sweep level' : 'Total requests to send during the benchmark'}
-                  hint="Range: 10 – 2000"
-                  value={requestCount}
-                  min={10}
-                  max={2000}
-                  step={10}
-                  display={String(requestCount)}
-                  onChange={setRequestCount}
-                />
 
                 <SelectParam
                   label="Backend"

@@ -207,7 +207,8 @@ export default function Home() {
   const {
     selectedModelId, selectedEngine, selectedQuant, selectedGpuId,
     concurrency, sweepEnabled, concurrencyLevels,
-    requestCount, inputTokensMean, outputTokensMean,
+    requestCount, sweepRequestMultiplier,
+    inputTokensMean, outputTokensMean,
     measurementWindow, islDistribution, backend, streaming,
     kvCacheDtype, maxModelLen, gpuMemoryUtil, maxBatchSize,
     prefixCaching, chunkedPrefill, flashAttention,
@@ -225,9 +226,11 @@ export default function Home() {
           engine:            selectedEngine,
           quantisation:      selectedQuant,
           gpuId:             selectedGpuId,
-          // Load profile — sweep mode sends concurrencyLevels, single run sends concurrency
+          // Load profile — sweep mode sends concurrencyLevels, single run sends concurrency.
+          // In sweep mode, `requestCount` carries the per-VU multiplier (template applies
+          // it as `concurrency × this`). In single mode it's the literal total.
           ...(sweepEnabled ? { concurrencyLevels } : { concurrency }),
-          requestCount,
+          requestCount: sweepEnabled ? sweepRequestMultiplier : requestCount,
           inputTokensMean,
           outputTokensMean,
           measurementWindow,
