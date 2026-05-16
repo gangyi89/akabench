@@ -208,6 +208,12 @@ MODEL_CACHE_PVC=model-cache-pvc      # optional
 
 ## Build & deploy
 
+For routine production releases (CI build + DB migration + workflow-dispatch
+rollout), see **[deployment.md](deployment.md)**.
+
+The targets below are for local image builds and one-shot operator-driven
+releases — not the normal flow.
+
 The repo ships a `Makefile` that builds and pushes the two app images, tagged
 with the short git SHA. Override `REGISTRY` via env var.
 
