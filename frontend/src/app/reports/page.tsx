@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useMemo, Suspense } from 'react'
+import { useEffect, useState, useMemo, Suspense } from 'react'
 import useSWR from 'swr'
-import type { MouseEvent } from 'react'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import Toast from '@/components/shared/Toast'
 import TopNav from '@/components/shared/TopNav'
 import EngineBadge from '@/components/shared/EngineBadge'
 import type { ReportListItem } from '@/lib/catalogue/types'
@@ -79,23 +80,28 @@ function ReportsContent() {
   const { data, error, mutate } = useSWR<{ reports: ReportListItem[] }>('/api/reports', fetcher, {
     keepPreviousData: true,
   })
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<ReportListItem | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
-  async function deleteReport(r: ReportListItem, ev: MouseEvent) {
-    ev.stopPropagation()
-    if (!window.confirm(`Delete report for "${r.modelName}"?\n\nThis will:\n• Remove the report row from the database\n• Delete all S3 result files under ${r.jobId}/\n\nThe original job record (if it still exists) is kept. This cannot be undone.`)) return
-    setDeleting(r.reportId)
-    try {
-      const res = await fetch(`/api/reports/${r.jobId}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        alert(`Delete failed: ${body.error ?? res.statusText}`)
-        return
-      }
-      await mutate()
-    } finally {
-      setDeleting(null)
+  // Detect arrival from the detail page after a successful delete.
+  useEffect(() => {
+    if (searchParams.get('deleted') === '1') {
+      setToast('Report deleted successfully.')
+      router.replace('/reports', { scroll: false })
     }
+  }, [searchParams, router])
+
+  async function performDelete() {
+    if (!pendingDelete) return
+    const r = pendingDelete
+    const res = await fetch(`/api/reports/${r.jobId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? res.statusText)
+    }
+    setPendingDelete(null)
+    setToast('Report deleted successfully.')
+    await mutate()
   }
 
   const [activeTab, setActiveTab] = useState<'individual' | 'sweep'>(
@@ -322,12 +328,11 @@ function ReportsContent() {
                             </Link>
                             <button
                               type="button"
-                              onClick={ev => deleteReport(r, ev)}
-                              disabled={deleting === r.reportId}
+                              onClick={ev => { ev.stopPropagation(); setPendingDelete(r) }}
                               title="Delete report"
                               aria-label={`Delete report for ${r.modelName}`}
-                              className="rounded px-2 py-1 text-[12px] font-semibold disabled:opacity-50"
-                              style={{ border: '1px solid var(--aka-gray-200)', color: '#991b1b', background: '#fff', cursor: deleting === r.reportId ? 'wait' : 'pointer' }}
+                              className="rounded px-2 py-1 text-[12px] font-semibold"
+                              style={{ border: '1px solid var(--aka-gray-200)', color: '#991b1b', background: '#fff', cursor: 'pointer' }}
                             >
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="3 6 5 6 21 6" />
@@ -345,6 +350,24 @@ function ReportsContent() {
           </>
         )}
       </main>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        variant="destructive"
+        title="Delete this report?"
+        description={pendingDelete && (
+          <>Deleting the report for <strong>{pendingDelete.modelName}</strong>. This cannot be undone.</>
+        )}
+        consequences={pendingDelete ? [
+          'Removes the report row from the database.',
+          `Deletes all S3 result files under ${pendingDelete.jobId}/.`,
+          'The original job record (if it still exists) is kept.',
+        ] : []}
+        confirmLabel="Delete report"
+        onConfirm={performDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+      <Toast message={toast} onDismiss={() => setToast(null)} />
     </div>
   )
 }

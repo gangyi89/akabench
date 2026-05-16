@@ -137,13 +137,24 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* "Running" indicator — gentle opacity pulse on a solid dot.
+   Same pattern GitHub Actions / Linear use for in-progress work. */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1;    }
+  50%      { opacity: 0.45; }
+}
+.status-pulse {
+  animation: status-pulse 1.8s ease-in-out infinite;
+}
+
 @media print {
   @page {
     size: A4 landscape;
     margin: 10mm 12mm;
   }
 
-  /* Hide chrome */
+  /* Hide chrome — TopNav uses <header> as its root */
+  header,
   nav,
   [data-print-hide] {
     display: none !important;

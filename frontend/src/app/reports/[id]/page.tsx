@@ -7,6 +7,8 @@ import useSWR from 'swr'
 import TopNav from '@/components/shared/TopNav'
 import EngineBadge from '@/components/shared/EngineBadge'
 import Spinner from '@/components/shared/Spinner'
+import ActionsMenu, { type ActionItem } from '@/components/shared/ActionsMenu'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import type { ReportData, AiperfMetric, DcgmMetricStats } from '@/lib/catalogue/types'
 import LatencyThroughputChart from '@/components/shared/LatencyThroughputChart'
 
@@ -211,7 +213,16 @@ export default function ReportDetailPage() {
   const searchParams = useSearchParams()
   const from = searchParams.get('from')
   const tab  = searchParams.get('tab')
-  const [deleting, setDeleting] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  async function performDelete() {
+    const res = await fetch(`/api/reports/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? res.statusText)
+    }
+    router.push('/reports?deleted=1')
+  }
   const backHref  = from === 'jobs' ? `/jobs/${id}` : `/reports${tab ? `?tab=${tab}` : ''}`
   const backLabel = from === 'jobs' ? '← Back to Job' : '← Back to Reports'
   const { data, error, isLoading } = useSWR<ReportData>(
@@ -287,15 +298,32 @@ export default function ReportDetailPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2" data-print-hide>
+                <ActionsMenu
+                  items={[
+                    {
+                      type: 'item',
+                      label: 'Delete report',
+                      variant: 'destructive',
+                      icon: (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      ),
+                      onClick: () => setConfirmOpen(true),
+                    } satisfies ActionItem,
+                  ]}
+                />
                 <button
+                  type="button"
                   onClick={() => {
                     const prev = document.title
                     document.title = `${job.modelName} — ${engineLabel} ${job.quantisation?.toUpperCase() ?? ''} · ${job.gpuName}`
                     window.print()
                     document.title = prev
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold cursor-pointer"
-                  style={{ border: '1.5px solid var(--aka-blue)', background: 'var(--aka-light)', color: 'var(--aka-blue)' }}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold text-white cursor-pointer"
+                  style={{ background: 'var(--aka-blue)', boxShadow: '0 2px 8px rgba(0,155,222,0.3)' }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="6 9 6 2 18 2 18 9" />
@@ -303,34 +331,6 @@ export default function ReportDetailPage() {
                     <rect x="6" y="14" width="12" height="8" />
                   </svg>
                   Export PDF
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!window.confirm(`Delete report for "${job.modelName}"?\n\nThis will:\n• Remove the report row from the database\n• Delete all S3 result files under ${id}/\n\nThe original job record (if it still exists) is kept. This cannot be undone.`)) return
-                    setDeleting(true)
-                    try {
-                      const res = await fetch(`/api/reports/${id}`, { method: 'DELETE' })
-                      if (!res.ok) {
-                        const body = await res.json().catch(() => ({}))
-                        alert(`Delete failed: ${body.error ?? res.statusText}`)
-                        setDeleting(false)
-                        return
-                      }
-                      router.push('/reports')
-                    } catch (err) {
-                      alert(`Delete failed: ${err instanceof Error ? err.message : 'unknown error'}`)
-                      setDeleting(false)
-                    }
-                  }}
-                  disabled={deleting}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold disabled:opacity-50"
-                  style={{ border: '1.5px solid #fecaca', background: '#fff', color: '#991b1b', cursor: deleting ? 'wait' : 'pointer' }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
-                  </svg>
-                  {deleting ? 'Deleting…' : 'Delete Report'}
                 </button>
               </div>
             </div>
@@ -446,8 +446,10 @@ export default function ReportDetailPage() {
                     <KVRow label="Quantisation" value={job.quantisation?.toUpperCase() ?? '—'} />
                     <KVRow label="dtype"        value={job.dtype} />
                     <KVRow label="Hardware"     value={job.gpuName} />
-                    <KVRow label="Submitted by" value={job.submittedBy} />
-                    <div className="flex items-start justify-between py-2" style={{ borderBottom: '1px solid var(--aka-gray-50)' }}>
+                    <div data-print-hide>
+                      <KVRow label="Submitted by" value={job.submittedBy} />
+                    </div>
+                    <div data-print-hide className="flex items-start justify-between py-2" style={{ borderBottom: '1px solid var(--aka-gray-50)' }}>
                       <span className="text-[12px]" style={{ color: 'var(--aka-gray-400)' }}>Job ID</span>
                       <Link href={`/jobs/${job.id}?from=report`}
                         className="inline-flex items-center gap-1 text-[13px] font-semibold hover:underline whitespace-nowrap ml-4"
@@ -531,6 +533,25 @@ export default function ReportDetailPage() {
           </>
         )}
       </main>
+
+      {job && (
+        <ConfirmDialog
+          open={confirmOpen}
+          variant="destructive"
+          title="Delete this report?"
+          description={
+            <>Deleting the report for <strong>{job.modelName}</strong>. This cannot be undone.</>
+          }
+          consequences={[
+            'Removes the report row from the database.',
+            `Deletes all S3 result files under ${id}/.`,
+            'The original job record (if it still exists) is kept.',
+          ]}
+          confirmLabel="Delete report"
+          onConfirm={performDelete}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
     </div>
   )
 }

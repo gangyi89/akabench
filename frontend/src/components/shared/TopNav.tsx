@@ -62,6 +62,7 @@ export default function TopNav({ active }: { active: ActivePage }) {
 
   return (
     <header
+      data-print-hide
       className="flex items-center justify-between px-6 sticky top-0 z-50 shadow-md"
       style={{ background: 'var(--aka-navy)', height: '52px' }}
     >

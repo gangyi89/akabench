@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
 import useSWR from 'swr'
 import TopNav from '@/components/shared/TopNav'
 import EngineBadge from '@/components/shared/EngineBadge'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import Toast from '@/components/shared/Toast'
 import type { Job, JobStatus } from '@/lib/catalogue/types'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -25,7 +27,13 @@ function StatusChip({ status }: { status: JobStatus }) {
       className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-semibold"
       style={{ background: s.bg, color: s.color }}
     >
-      {s.dot && <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: 'currentColor' }} />}
+      {s.dot && (
+        <span
+          className="status-pulse inline-flex h-2 w-2 rounded-full"
+          style={{ background: 'currentColor' }}
+          aria-hidden="true"
+        />
+      )}
       {s.label}
     </span>
   )
@@ -66,29 +74,35 @@ function SkeletonRows({ cols, rows = 4 }: { cols: number; rows?: number }) {
   )
 }
 
-export default function JobsPage() {
+function JobsContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data, error, mutate } = useSWR<{ jobs: Job[] }>('/api/jobs', fetcher, {
     refreshInterval: 5000,
     keepPreviousData: true,
   })
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Job | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
-  async function deleteJob(job: Job) {
-    const label = `${job.modelName} (${job.id.slice(0, 8)})`
-    if (!window.confirm(`Delete job "${label}"?\n\nThis will:\n• Cancel the K8s Job if still running\n• Remove job rows from the database\n\nThe report (if any) and S3 result files are kept. This cannot be undone.`)) return
-    setDeleting(job.id)
-    try {
-      const res = await fetch(`/api/jobs/${job.id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        alert(`Delete failed: ${body.error ?? res.statusText}`)
-        return
-      }
-      await mutate()
-    } finally {
-      setDeleting(null)
+  // Pick up a redirect from the detail page (e.g. /jobs?deleted=1).
+  useEffect(() => {
+    if (searchParams.get('deleted') === '1') {
+      setToast('Job deleted successfully.')
+      router.replace('/jobs', { scroll: false })
     }
+  }, [searchParams, router])
+
+  async function performDelete() {
+    if (!pendingDelete) return
+    const job = pendingDelete
+    const res = await fetch(`/api/jobs/${job.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? res.statusText)
+    }
+    setPendingDelete(null)
+    setToast('Job deleted successfully.')
+    await mutate()
   }
 
   const jobs    = data?.jobs ?? []
@@ -200,12 +214,11 @@ export default function JobsPage() {
                           </Link>
                           <button
                             type="button"
-                            onClick={() => deleteJob(job)}
-                            disabled={deleting === job.id}
+                            onClick={() => setPendingDelete(job)}
                             title="Delete job"
                             aria-label={`Delete job ${job.id.slice(0, 8)}`}
-                            className="rounded px-2 py-1 text-[12px] font-semibold disabled:opacity-50"
-                            style={{ border: '1px solid var(--aka-gray-200)', color: '#991b1b', background: '#fff', cursor: deleting === job.id ? 'wait' : 'pointer' }}
+                            className="rounded px-2 py-1 text-[12px] font-semibold"
+                            style={{ border: '1px solid var(--aka-gray-200)', color: '#991b1b', background: '#fff', cursor: 'pointer' }}
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="3 6 5 6 21 6" />
@@ -222,6 +235,32 @@ export default function JobsPage() {
           )}
         </div>
       </main>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        variant="destructive"
+        title="Delete this job?"
+        description={pendingDelete && (
+          <>Deleting <strong>{pendingDelete.modelName}</strong> ({pendingDelete.id.slice(0, 8)}…). This cannot be undone.</>
+        )}
+        consequences={[
+          'Cancels the K8s Job if it is still running.',
+          'Removes the job rows from the database.',
+          'The report (if any) and S3 result files are kept.',
+        ]}
+        confirmLabel="Delete job"
+        onConfirm={performDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+      <Toast message={toast} onDismiss={() => setToast(null)} />
     </div>
+  )
+}
+
+export default function JobsPage() {
+  return (
+    <Suspense>
+      <JobsContent />
+    </Suspense>
   )
 }

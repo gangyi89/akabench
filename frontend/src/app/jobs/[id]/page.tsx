@@ -6,6 +6,8 @@ import { useState, useRef, useEffect } from 'react'
 import useSWR from 'swr'
 import TopNav from '@/components/shared/TopNav'
 import Spinner from '@/components/shared/Spinner'
+import ActionsMenu, { type ActionItem } from '@/components/shared/ActionsMenu'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import type { JobDetail, JobStatus } from '@/lib/catalogue/types'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -31,7 +33,13 @@ function StatusChip({ status }: { status: JobStatus }) {
       className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-semibold"
       style={{ background: s.bg, color: s.color }}
     >
-      {s.dot && <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: 'currentColor' }} />}
+      {s.dot && (
+        <span
+          className="status-pulse inline-flex h-2 w-2 rounded-full"
+          style={{ background: 'currentColor' }}
+          aria-hidden="true"
+        />
+      )}
       {s.label}
     </span>
   )
@@ -42,10 +50,21 @@ function formatRelative(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const diffMin = Math.floor(diffMs / 60_000)
   if (diffMin < 1)  return 'just now'
-  if (diffMin < 60) return `${diffMin} min ago`
+  if (diffMin < 60) return `${diffMin}m ago`
   const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24)  return `${diffHr} hr ago`
-  return `${Math.floor(diffHr / 24)} days ago`
+  if (diffHr < 24)  return `${diffHr}h ago`
+  return `${Math.floor(diffHr / 24)}d ago`
+}
+
+function formatDuration(startIso: string, endIso: string): string {
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime()
+  if (ms < 0) return '—'
+  const sec = Math.floor(ms / 1000)
+  if (sec < 60) return `${sec}s`
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m`
+  const hr  = Math.floor(min / 60)
+  return min % 60 === 0 ? `${hr}h` : `${hr}h ${min % 60}m`
 }
 
 // ── Download helpers ───────────────────────────────────────────────────────
@@ -57,102 +76,182 @@ const DOWNLOAD_FILES: { key: DownloadFile; label: string; description: string }[
   { key: 'dcgm',   label: 'GPU Metrics',     description: 'dcgm_metrics.json' },
 ]
 
-function DownloadButton({ jobId, file, label, description }: {
-  jobId: string
-  file: DownloadFile
-  label: string
-  description: string
-}) {
-  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
-
-  async function handleDownload() {
-    setState('loading')
-    try {
-      const res = await fetch(`/api/jobs/${jobId}/report?file=${file}`)
-      if (!res.ok) {
-        setState('error')
-        setTimeout(() => setState('idle'), 3000)
-        return
-      }
-      const { url } = await res.json()
-      // Open the presigned URL in the same tab — browser triggers file download
-      // because the S3 response sets Content-Disposition: attachment.
-      window.location.href = url
-      setState('idle')
-    } catch {
-      setState('error')
-      setTimeout(() => setState('idle'), 3000)
+async function triggerDownload(jobId: string, file: DownloadFile, label: string) {
+  try {
+    const res = await fetch(`/api/jobs/${jobId}/report?file=${file}`)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      alert(`Download failed for ${label}: ${body.error ?? res.statusText}`)
+      return
     }
+    const { url } = await res.json()
+    // Open the presigned URL in the same tab — browser triggers file download
+    // because the S3 response sets Content-Disposition: attachment.
+    window.location.href = url
+  } catch (err) {
+    alert(`Download failed for ${label}: ${err instanceof Error ? err.message : 'unknown error'}`)
   }
+}
 
+const DOWNLOAD_ICON = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+)
+
+const TRASH_ICON = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+  </svg>
+)
+
+// ── Inline meta icons (stroke-only, sized to match 13px text) ──────────────
+
+const ICON_ID = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="6" width="20" height="12" rx="2" />
+    <path d="M6 10v4M10 10v4M14 10v4M18 10v4" />
+  </svg>
+)
+const ICON_USER = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+)
+const ICON_CLOCK = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+)
+const ICON_CHECK = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+)
+
+// ── Copy-to-clipboard button (compact, used inline with metadata) ──────────
+
+function CopyButton({ value, ariaLabel = 'Copy to clipboard' }: { value: string; ariaLabel?: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
   return (
     <button
-      onClick={handleDownload}
-      disabled={state === 'loading'}
-      className="w-full flex items-center justify-between rounded-md px-3 py-2 text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      type="button"
+      onClick={copy}
+      title={copied ? 'Copied!' : ariaLabel}
+      aria-label={copied ? 'Copied' : ariaLabel}
+      className="inline-flex items-center justify-center rounded transition-colors"
       style={{
-        background: state === 'error' ? '#fee2e2' : 'var(--aka-gray-50)',
-        border: `1px solid ${state === 'error' ? '#fca5a5' : 'var(--aka-gray-200)'}`,
+        width: '20px', height: '20px',
+        color: copied ? 'var(--aka-blue)' : 'var(--aka-gray-400)',
+        background: 'transparent',
       }}
+      onMouseEnter={ev => { ev.currentTarget.style.background = 'var(--aka-gray-100)' }}
+      onMouseLeave={ev => { ev.currentTarget.style.background = 'transparent' }}
     >
-      <div>
-        <div className="text-[13px] font-semibold" style={{ color: state === 'error' ? '#991b1b' : 'var(--aka-gray-800)' }}>
-          {state === 'error' ? 'Download failed' : label}
-        </div>
-        <div className="text-[11px]" style={{ color: 'var(--aka-gray-400)' }}>{description}</div>
-      </div>
-      <div style={{ color: state === 'error' ? '#991b1b' : 'var(--aka-blue)', flexShrink: 0 }}>
-        {state === 'loading'
-          ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-        }
-      </div>
+      {copied ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
     </button>
   )
 }
 
-// ── Param display helpers ──────────────────────────────────────────────────
+// ── Job meta strip (inline icons + values, no card border) ─────────────────
+
+function JobMetaStrip({ job }: { job: JobDetail }) {
+  const shortId = `${job.id.slice(0, 8)}…${job.id.slice(-4)}`
+  const completedFragment = job.completedAt
+    ? `Completed ${formatRelative(job.completedAt)} (ran ${formatDuration(job.submittedAt, job.completedAt)})`
+    : null
+
+  return (
+    <div
+      className="mb-5 pb-5 flex items-center flex-wrap gap-x-6 gap-y-2 text-[13px]"
+      style={{ borderBottom: '1px solid var(--aka-gray-200)', color: 'var(--aka-gray-600)' }}
+    >
+      <span className="inline-flex items-center gap-1.5" title={job.id}>
+        <span style={{ color: 'var(--aka-gray-400)' }}>{ICON_ID}</span>
+        <code style={{ fontFamily: "'SFMono-Regular', Consolas, monospace", fontSize: '12px', color: 'var(--aka-gray-700)' }}>
+          {shortId}
+        </code>
+        <CopyButton value={job.id} ariaLabel="Copy job ID" />
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span style={{ color: 'var(--aka-gray-400)' }}>{ICON_USER}</span>
+        {job.submittedBy}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span style={{ color: 'var(--aka-gray-400)' }}>{ICON_CLOCK}</span>
+        Submitted {formatRelative(job.submittedAt)}
+      </span>
+      {completedFragment && (
+        <span className="inline-flex items-center gap-1.5">
+          <span style={{ color: 'var(--aka-green, #16a34a)' }}>{ICON_CHECK}</span>
+          {completedFragment}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ── Spec card — single card with sectioned content ─────────────────────────
 
 type Param = { key: string; val: string; wide?: boolean; muted?: boolean }
+type Section = { title: string; params: Param[] }
 
-function SectionCard({ title, params }: { title: string; params: Param[] }) {
+function SpecsCard({ sections }: { sections: Section[] }) {
   return (
     <div
       className="overflow-hidden rounded-lg"
       style={{ background: '#fff', border: '1px solid var(--aka-gray-200)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
     >
-      <div
-        className="px-4 py-3 text-[12px] font-bold uppercase tracking-wider"
-        style={{ color: 'var(--aka-gray-500)', borderBottom: '1px solid var(--aka-gray-100)' }}
-      >
-        {title}
-      </div>
-      <div className="p-4 grid grid-cols-2 gap-x-6">
-        {params.map(p => (
-          <div
-            key={p.key}
-            className={`py-2 ${p.wide ? 'col-span-2' : ''}`}
-            style={{ borderBottom: '1px solid var(--aka-gray-50)' }}
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--aka-gray-400)' }}>
-              {p.key}
+      {sections.map((section, i) => (
+        <div key={section.title}>
+          {i > 0 && <div style={{ height: 1, background: 'var(--aka-gray-100)' }} />}
+          <div className="px-6 py-5">
+            <div className="text-[11px] font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--aka-gray-500)' }}>
+              {section.title}
             </div>
-            <div
-              className="text-[14px] font-bold leading-snug"
-              style={{ color: p.muted ? 'var(--aka-gray-400)' : 'var(--aka-gray-800)', fontStyle: p.muted ? 'italic' : 'normal', fontWeight: p.muted ? 400 : 700 }}
-            >
-              {p.val}
+            <div className="grid grid-cols-4 gap-x-6 gap-y-5">
+              {section.params.map(p => (
+                <div key={p.key} className={p.wide ? 'col-span-4' : ''}>
+                  <div className="text-[12px] font-medium mb-1" style={{ color: 'var(--aka-gray-400)' }}>
+                    {p.key}
+                  </div>
+                  <div
+                    className="text-[14px] leading-snug"
+                    style={{
+                      color: p.muted ? 'var(--aka-gray-400)' : 'var(--aka-gray-900)',
+                      fontStyle: p.muted ? 'italic' : 'normal',
+                      fontWeight: p.muted ? 400 : 600,
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {p.val}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -177,10 +276,13 @@ function buildSections(job: JobDetail): { title: string; params: Param[] }[] {
     { key: 'Engine',       val: engineLabel },
     { key: 'Quantisation', val: quantLabel },
     { key: 'dtype',        val: job.dtype },
+    ...(job.engineImage ? [{ key: 'Engine image', val: job.engineImage, wide: true }] : []),
   ]
 
   const hardware: Param[] = [
-    { key: 'GPU', val: `${job.gpuName} · ${vram} GB VRAM`, wide: true },
+    { key: 'GPU',   val: job.gpuName },
+    { key: 'VRAM',  val: `${vram} GB` },
+    { key: 'Count', val: '1' },
   ]
 
   const loadProfile: Param[] = [
@@ -335,25 +437,16 @@ export default function JobDetailPage() {
   const [userTab, setUserTab] = useState<'specs' | 'logs' | null>(null)
   const mainTab: 'specs' | 'logs' = userTab ?? (job?.status === 'failed' ? 'logs' : 'specs')
 
-  const [deleting, setDeleting] = useState(false)
-  async function handleDelete() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  async function performDelete() {
     if (!job) return
-    const label = `${job.modelName} (${job.id.slice(0, 8)})`
-    if (!window.confirm(`Delete job "${label}"?\n\nThis will:\n• Cancel the K8s Job if still running\n• Remove job rows from the database\n\nThe report (if any) and S3 result files are kept. This cannot be undone.`)) return
-    setDeleting(true)
-    try {
-      const res = await fetch(`/api/jobs/${job.id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        alert(`Delete failed: ${body.error ?? res.statusText}`)
-        setDeleting(false)
-        return
-      }
-      router.push('/jobs')
-    } catch (err) {
-      alert(`Delete failed: ${err instanceof Error ? err.message : 'unknown error'}`)
-      setDeleting(false)
+    const res = await fetch(`/api/jobs/${job.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? res.statusText)
     }
+    router.push('/jobs?deleted=1')
   }
 
   return (
@@ -379,12 +472,13 @@ export default function JobDetailPage() {
         {job && (
           <>
             {/* Title row */}
-            <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="text-[20px] font-extrabold leading-tight" style={{ color: 'var(--aka-gray-900)' }}>
                     {job.modelName}
                   </h1>
+                  <StatusChip status={job.status} />
                   {job.concurrencyLevels && job.concurrencyLevels.length > 0 && (
                     <span
                       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
@@ -398,179 +492,115 @@ export default function JobDetailPage() {
                   )}
                 </div>
                 <p className="mt-1 text-[13px]" style={{ color: 'var(--aka-gray-500)' }}>
-                  {job.modelId} · {engineLabel} · {job.quantisation?.toUpperCase() ?? '—'} · {job.gpuName}
+                  {engineLabel} · {job.quantisation?.toUpperCase() ?? '—'} · {job.gpuName}
+                  {job.concurrencyLevels && job.concurrencyLevels.length > 0
+                    ? <> · sweep [{job.concurrencyLevels.join(', ')}]</>
+                    : <> · {job.concurrency} VUs · {job.requestCount} reqs</>
+                  }
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold disabled:opacity-50"
-                style={{ border: '1.5px solid #fecaca', background: '#fff', color: '#991b1b', cursor: deleting ? 'wait' : 'pointer' }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
-                </svg>
-                {deleting ? 'Deleting…' : 'Delete Job'}
-              </button>
-            </div>
 
-            {/* Two-column layout */}
-            <div className="grid gap-4" style={{ gridTemplateColumns: '240px 1fr', alignItems: 'start' }}>
-
-              {/* Sidebar */}
-              <div className="flex flex-col gap-3">
-
-                {/* Job Info */}
-                <div
-                  className="overflow-hidden rounded-lg"
-                  style={{ background: '#fff', border: '1px solid var(--aka-gray-200)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
-                >
-                  <div
-                    className="px-4 py-3 text-[12px] font-bold uppercase tracking-wider"
-                    style={{ color: 'var(--aka-gray-500)', borderBottom: '1px solid var(--aka-gray-100)' }}
-                  >
-                    Job Info
-                  </div>
-                  <div className="px-4 py-3">
-                    <table className="w-full" style={{ borderCollapse: 'collapse' }}>
-                      <tbody>
-                        {[
-                          { label: 'Status',       content: <StatusChip status={job.status} /> },
-                          { label: 'Job ID',        content: (
-                            <span style={{ fontFamily: "'SFMono-Regular', Consolas, monospace", fontSize: '12px', wordBreak: 'break-all', color: 'var(--aka-gray-700)' }}>
-                              {job.id}
-                            </span>
-                          )},
-                          { label: 'Submitted by',  content: job.submittedBy },
-                          { label: 'Submitted',     content: formatRelative(job.submittedAt) },
-                          ...(job.completedAt ? [{ label: 'Completed', content: formatRelative(job.completedAt) }] : []),
-                        ].map(row => (
-                          <tr key={row.label} style={{ borderTop: '1px solid var(--aka-gray-50)' }}>
-                            <td className="py-2 text-[12px] pr-3 align-top" style={{ color: 'var(--aka-gray-400)', width: '88px' }}>
-                              {row.label}
-                            </td>
-                            <td className="py-2 text-[13px] font-semibold align-top" style={{ color: 'var(--aka-gray-800)' }}>
-                              {row.content}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Artifacts */}
-                <div
-                  className="overflow-hidden rounded-lg"
-                  style={{ background: '#fff', border: '1px solid var(--aka-gray-200)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
-                >
-                  <div
-                    className="px-4 py-3 text-[12px] font-bold uppercase tracking-wider"
-                    style={{ color: 'var(--aka-gray-500)', borderBottom: '1px solid var(--aka-gray-100)' }}
-                  >
-                    Artifacts
-                  </div>
-                  {job.status === 'complete' ? (
-                    <div className="px-3 py-3 flex flex-col gap-2">
-                      {DOWNLOAD_FILES.map(f => (
-                        <DownloadButton
-                          key={f.key}
-                          jobId={job.id}
-                          file={f.key}
-                          label={f.label}
-                          description={f.description}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="px-4 py-4 flex flex-col gap-2">
-                      {DOWNLOAD_FILES.map(f => (
-                        <div
-                          key={f.key}
-                          className="flex items-center justify-between rounded-md px-3 py-2"
-                          style={{ background: 'var(--aka-gray-50)', border: '1px solid var(--aka-gray-200)' }}
-                        >
-                          <div>
-                            <div className="text-[13px] font-semibold" style={{ color: 'var(--aka-gray-400)' }}>{f.label}</div>
-                            <div className="text-[11px]" style={{ color: 'var(--aka-gray-300)' }}>{f.description}</div>
-                          </div>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--aka-gray-300)', flexShrink: 0 }}>
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="7 10 12 15 17 10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                          </svg>
-                        </div>
-                      ))}
-                      <p className="text-[11px] text-center pt-1" style={{ color: 'var(--aka-gray-300)' }}>
-                        Available once the benchmark completes
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* View Report — only for completed jobs */}
+              {/* Action toolbar — overflow menu for downloads + delete,
+                  standalone primary CTA for "View Report". */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <ActionsMenu
+                  items={[
+                    ...(job.status === 'complete'
+                      ? DOWNLOAD_FILES.flatMap<ActionItem>(f => [{
+                          type: 'item',
+                          label: `Download ${f.label}`,
+                          icon: DOWNLOAD_ICON,
+                          onClick: () => { void triggerDownload(job.id, f.key, f.label) },
+                        }])
+                      : []),
+                    ...(job.status === 'complete' ? [{ type: 'divider' as const }] : []),
+                    {
+                      type: 'item',
+                      label: 'Delete job',
+                      icon: TRASH_ICON,
+                      variant: 'destructive',
+                      onClick: () => setConfirmOpen(true),
+                    },
+                  ]}
+                />
                 {job.status === 'complete' && (
                   <Link
                     href={`/reports/${job.id}?from=jobs`}
-                    className="w-full rounded-lg py-2.5 text-[13px] font-bold flex items-center justify-center"
-                    style={{
-                      border: '1.5px solid var(--aka-blue)',
-                      background: 'var(--aka-light)',
-                      color: 'var(--aka-blue)',
-                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold text-white"
+                    style={{ background: 'var(--aka-blue)', boxShadow: '0 2px 8px rgba(0,155,222,0.3)' }}
                   >
                     View Report
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
                   </Link>
                 )}
+              </div>
+            </div>
 
+            {/* Compact inline metadata strip — Job ID, submitter, timings */}
+            <JobMetaStrip job={job} />
+
+            {/* Single-column main content — tabs + specs/logs panel */}
+            <div className="flex flex-col gap-4" style={{ minWidth: 0 }}>
+
+              {/* Tab bar */}
+              <div className="flex" style={{ borderBottom: '1px solid var(--aka-gray-200)' }}>
+                {(['specs', 'logs'] as const).map(t => {
+                  const logsEnabled = job.status === 'complete' || job.status === 'failed'
+                  const disabled = t === 'logs' && !logsEnabled
+                  const active = mainTab === t
+                  return (
+                    <div key={t}
+                      onClick={() => !disabled && setUserTab(t)}
+                      className="px-[18px] py-2 text-[12px]"
+                      style={{
+                        cursor:       disabled ? 'default' : 'pointer',
+                        fontWeight:   active ? 600 : 500,
+                        color:        disabled ? 'var(--aka-gray-300)' : active ? 'var(--aka-blue)' : 'var(--aka-gray-500)',
+                        borderBottom: `2px solid ${active ? 'var(--aka-blue)' : 'transparent'}`,
+                        marginBottom: '-1px',
+                      }}>
+                      {t === 'specs' ? 'Specifications' : 'Logs'}
+                    </div>
+                  )
+                })}
               </div>
 
-              {/* Main — 2-tab layout */}
-              <div className="flex flex-col" style={{ minWidth: 0 }}>
-                {/* Tab bar */}
-                <div className="flex mb-[14px]" style={{ borderBottom: '1px solid var(--aka-gray-200)' }}>
-                  {(['specs', 'logs'] as const).map(t => {
-                    const logsEnabled = job.status === 'complete' || job.status === 'failed'
-                    const disabled = t === 'logs' && !logsEnabled
-                    const active = mainTab === t
-                    return (
-                      <div key={t}
-                        onClick={() => !disabled && setUserTab(t)}
-                        className="px-[18px] py-2 text-[12px]"
-                        style={{
-                          cursor:       disabled ? 'default' : 'pointer',
-                          fontWeight:   active ? 600 : 500,
-                          color:        disabled ? 'var(--aka-gray-300)' : active ? 'var(--aka-blue)' : 'var(--aka-gray-500)',
-                          borderBottom: `2px solid ${active ? 'var(--aka-blue)' : 'transparent'}`,
-                          marginBottom: '-1px',
-                        }}>
-                        {t === 'specs' ? 'Specifications' : 'Logs'}
-                      </div>
-                    )
-                  })}
-                </div>
+              {/* Specifications panel — single card with sectioned content */}
+              {mainTab === 'specs' && (
+                <SpecsCard sections={buildSections(job)} />
+              )}
 
-                {/* Specifications panel */}
-                {mainTab === 'specs' && (
-                  <div className="flex flex-col gap-3">
-                    {buildSections(job).map(section => (
-                      <SectionCard key={section.title} title={section.title} params={section.params} />
-                    ))}
-                  </div>
-                )}
-
-                {/* Logs panel */}
-                {mainTab === 'logs' && (
-                  <LogsViewer jobId={job.id} engineLabel={engineLabel} />
-                )}
-              </div>
+              {/* Logs panel */}
+              {mainTab === 'logs' && (
+                <LogsViewer jobId={job.id} engineLabel={engineLabel} />
+              )}
 
             </div>
           </>
         )}
       </main>
+
+      {job && (
+        <ConfirmDialog
+          open={confirmOpen}
+          variant="destructive"
+          title="Delete this job?"
+          description={
+            <>Deleting <strong>{job.modelName}</strong> ({job.id.slice(0, 8)}…). This cannot be undone.</>
+          }
+          consequences={[
+            'Cancels the K8s Job if it is still running.',
+            'Removes the job rows from the database.',
+            'The report (if any) and S3 result files are kept.',
+          ]}
+          confirmLabel="Delete job"
+          onConfirm={performDelete}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
     </div>
   )
 }
