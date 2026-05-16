@@ -207,9 +207,10 @@ async def _watch_job(req: BenchmarkRequest, k8s_job_name: str) -> None:
 
         if status == "complete":
             await db.update_status(req.job_id, "complete", completed_at=completed_at)
+            await db.insert_report(req.job_id, completed_at)
             if pod_name:
                 await _upload_job_logs(req.job_id, req.engine, pod_name)
-            log.info("Job %s complete.", req.job_id)
+            log.info("Job %s complete — report row inserted.", req.job_id)
         else:
             # Job failed for a reason other than CrashLoopBackOff — try to
             # capture logs anyway for diagnosis.
@@ -233,6 +234,54 @@ async def _watch_job(req: BenchmarkRequest, k8s_job_name: str) -> None:
 
         _active.pop(req.job_id, None)
         return
+
+
+async def delete_job_cascade(job_id: str) -> dict:
+    """Delete a job everywhere it lives — except reports + S3.
+
+    Order: cancel watcher → delete K8s Job (best-effort) → DELETE from `jobs`
+    (cascades to job_status + job_dlq). `reports` and S3 are untouched.
+    """
+    result = {"watcher_cancelled": False, "k8s_deleted": False, "db_deleted": False}
+
+    # 1. Cancel the in-memory watcher so it doesn't write back after deletion.
+    task = _tasks.pop(job_id, None)
+    if task and not task.done():
+        task.cancel()
+        result["watcher_cancelled"] = True
+    _active.pop(job_id, None)
+
+    # 2. Best-effort K8s Job delete. The Job name pattern is
+    #    `benchmark-<job_id>-<engine>` — we need the engine to construct it.
+    engine = await db.get_job_engine(job_id)
+    if engine:
+        k8s_job_name = f"benchmark-{job_id}-{engine}"
+        try:
+            result["k8s_deleted"] = await k8s_client.delete_job(k8s_job_name)
+        except Exception as exc:
+            log.warning("K8s delete failed for %s: %s — continuing", k8s_job_name, exc)
+
+    # 3. Delete the jobs row (cascades to job_status + job_dlq).
+    result["db_deleted"] = await db.delete_job(job_id)
+    log.info("Deleted job %s — %s", job_id, result)
+    return result
+
+
+async def delete_report_cascade(report_id: str) -> dict:
+    """Delete a report and its S3 artefacts. Jobs row is untouched."""
+    result = {"s3_deleted": 0, "db_deleted": False}
+
+    job_id = await db.get_report_job_id(report_id)
+    if job_id:
+        try:
+            result["s3_deleted"] = await s3_client.delete_prefix(job_id)
+        except Exception as exc:
+            log.warning("S3 delete failed for report %s (prefix %s): %s",
+                        report_id, job_id, exc)
+
+    result["db_deleted"] = await db.delete_report(report_id)
+    log.info("Deleted report %s — %s", report_id, result)
+    return result
 
 
 async def subscribe() -> None:

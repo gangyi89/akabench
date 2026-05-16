@@ -28,6 +28,19 @@ async def receive_results(job_id: str, payload: CollectorPayload) -> Response:
     return Response(status_code=204)
 
 
+@app.delete("/jobs/{job_id}", status_code=200)
+async def delete_job(job_id: str) -> dict:
+    """Delete a job everywhere it lives — DB rows, K8s Job, watcher state.
+    Reports + S3 are untouched. Idempotent."""
+    return await scheduler.delete_job_cascade(job_id)
+
+
+@app.delete("/reports/{report_id}", status_code=200)
+async def delete_report(report_id: str) -> dict:
+    """Delete a report row and its S3 artefacts. Jobs row is untouched."""
+    return await scheduler.delete_report_cascade(report_id)
+
+
 @app.get("/healthz")
 async def healthz() -> dict:
     return {"status": "ok"}

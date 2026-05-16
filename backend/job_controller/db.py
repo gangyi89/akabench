@@ -110,6 +110,88 @@ async def get_job(job_id: str) -> "BenchmarkRequest":
 
 
 # ---------------------------------------------------------------------------
+# reports — job controller is the sole writer
+# A successful job is "promoted" to a report by snapshotting its configuration
+# (joined from jobs + job_status + models) into the reports table. The report
+# row owns the S3 result files under `<job_id>/`; the original jobs row is
+# independent from this point on.
+# ---------------------------------------------------------------------------
+
+async def insert_report(job_id: str, completed_at: datetime) -> None:
+    """Snapshot a completed job into the reports table.
+
+    Idempotent: a job already promoted to a report is skipped. This protects
+    against a watcher running the completion path twice (e.g. on controller
+    restart with in-flight jobs).
+    """
+    await _pool.execute(
+        """
+        INSERT INTO reports (
+            job_id, submitted_by, model_id, model_name, engine, engine_image,
+            quantisation, dtype, kv_cache_dtype, gpu_type,
+            max_model_len, gpu_memory_util, max_batch_size,
+            prefix_caching, chunked_prefill, flash_attention,
+            batch_scheduler, cuda_graphs,
+            concurrency, concurrency_levels,
+            input_tokens_mean, output_tokens_mean, request_count,
+            streaming, measurement_window, isl_distribution, backend,
+            completed_at
+        )
+        SELECT
+            j.job_id, j.submitted_by, j.model_id, m.display_name, j.engine, js.engine_image,
+            j.quantisation, j.dtype, j.kv_cache_dtype, j.gpu_type,
+            j.max_model_len, j.gpu_memory_util, j.max_batch_size,
+            j.prefix_caching, j.chunked_prefill, j.flash_attention,
+            j.batch_scheduler, j.cuda_graphs,
+            j.concurrency, j.concurrency_levels,
+            j.input_tokens_mean, j.output_tokens_mean, j.request_count,
+            j.streaming, j.measurement_window, j.isl_distribution, j.backend,
+            $2
+        FROM jobs j
+        LEFT JOIN job_status js ON js.job_id = j.job_id
+        LEFT JOIN models     m  ON m.hf_repo_id = j.model_id
+        WHERE j.job_id = $1
+          AND NOT EXISTS (SELECT 1 FROM reports r WHERE r.job_id = j.job_id)
+        """,
+        job_id, completed_at,
+    )
+
+
+async def get_report_job_id(report_id: str) -> Optional[str]:
+    """Look up the job_id (= S3 prefix) for a report row."""
+    row = await _pool.fetchrow(
+        "SELECT job_id FROM reports WHERE report_id = $1",
+        report_id,
+    )
+    return str(row["job_id"]) if row and row["job_id"] else None
+
+
+async def delete_report(report_id: str) -> bool:
+    """Remove a reports row. Returns True if a row was deleted."""
+    result = await _pool.execute(
+        "DELETE FROM reports WHERE report_id = $1",
+        report_id,
+    )
+    # asyncpg returns 'DELETE <count>' — last token is the row count.
+    return result.endswith(" 1")
+
+
+async def delete_job(job_id: str) -> bool:
+    """Remove a jobs row (cascades to job_status + job_dlq). Reports untouched."""
+    result = await _pool.execute(
+        "DELETE FROM jobs WHERE job_id = $1",
+        job_id,
+    )
+    return result.endswith(" 1")
+
+
+async def get_job_engine(job_id: str) -> Optional[str]:
+    """Return the engine string for a job (needed to construct the K8s Job name)."""
+    row = await _pool.fetchrow("SELECT engine FROM jobs WHERE job_id = $1", job_id)
+    return row["engine"] if row else None
+
+
+# ---------------------------------------------------------------------------
 # job_dlq — job controller is the sole writer
 # ---------------------------------------------------------------------------
 

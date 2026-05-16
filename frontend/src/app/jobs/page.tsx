@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import useSWR from 'swr'
 import TopNav from '@/components/shared/TopNav'
 import EngineBadge from '@/components/shared/EngineBadge'
@@ -67,10 +68,28 @@ function SkeletonRows({ cols, rows = 4 }: { cols: number; rows?: number }) {
 
 export default function JobsPage() {
   const router = useRouter()
-  const { data, error } = useSWR<{ jobs: Job[] }>('/api/jobs', fetcher, {
+  const { data, error, mutate } = useSWR<{ jobs: Job[] }>('/api/jobs', fetcher, {
     refreshInterval: 5000,
     keepPreviousData: true,
   })
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  async function deleteJob(job: Job) {
+    const label = `${job.modelName} (${job.id.slice(0, 8)})`
+    if (!window.confirm(`Delete job "${label}"?\n\nThis will:\n• Cancel the K8s Job if still running\n• Remove job rows from the database\n\nThe report (if any) and S3 result files are kept. This cannot be undone.`)) return
+    setDeleting(job.id)
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        alert(`Delete failed: ${body.error ?? res.statusText}`)
+        return
+      }
+      await mutate()
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   const jobs    = data?.jobs ?? []
   const running  = jobs.filter(j => j.status === 'running').length
@@ -171,13 +190,29 @@ export default function JobsPage() {
                       <td className="px-4 py-3 text-[13px]" style={{ color: 'var(--aka-gray-600)' }}>{job.submittedBy}</td>
                       <td className="px-4 py-3 text-[13px]" style={{ color: 'var(--aka-gray-400)' }}>{formatRelative(job.submittedAt)}</td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                        <Link
-                          href={`/jobs/${job.id}`}
-                          className="rounded px-3 py-1 text-[12px] font-semibold"
-                          style={{ border: '1px solid var(--aka-gray-200)', color: 'var(--aka-gray-600)', background: '#fff' }}
-                        >
-                          View →
-                        </Link>
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <Link
+                            href={`/jobs/${job.id}`}
+                            className="rounded px-3 py-1 text-[12px] font-semibold"
+                            style={{ border: '1px solid var(--aka-gray-200)', color: 'var(--aka-gray-600)', background: '#fff' }}
+                          >
+                            View →
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => deleteJob(job)}
+                            disabled={deleting === job.id}
+                            title="Delete job"
+                            aria-label={`Delete job ${job.id.slice(0, 8)}`}
+                            className="rounded px-2 py-1 text-[12px] font-semibold disabled:opacity-50"
+                            style={{ border: '1px solid var(--aka-gray-200)', color: '#991b1b', background: '#fff', cursor: deleting === job.id ? 'wait' : 'pointer' }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

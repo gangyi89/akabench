@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useMemo, Suspense } from 'react'
 import useSWR from 'swr'
+import type { MouseEvent } from 'react'
 import TopNav from '@/components/shared/TopNav'
 import EngineBadge from '@/components/shared/EngineBadge'
 import type { ReportListItem } from '@/lib/catalogue/types'
@@ -75,9 +76,27 @@ function FilterSelect({
 function ReportsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { data, error } = useSWR<{ reports: ReportListItem[] }>('/api/reports', fetcher, {
+  const { data, error, mutate } = useSWR<{ reports: ReportListItem[] }>('/api/reports', fetcher, {
     keepPreviousData: true,
   })
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  async function deleteReport(r: ReportListItem, ev: MouseEvent) {
+    ev.stopPropagation()
+    if (!window.confirm(`Delete report for "${r.modelName}"?\n\nThis will:\n• Remove the report row from the database\n• Delete all S3 result files under ${r.jobId}/\n\nThe original job record (if it still exists) is kept. This cannot be undone.`)) return
+    setDeleting(r.reportId)
+    try {
+      const res = await fetch(`/api/reports/${r.jobId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        alert(`Delete failed: ${body.error ?? res.statusText}`)
+        return
+      }
+      await mutate()
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   const [activeTab, setActiveTab] = useState<'individual' | 'sweep'>(
     searchParams.get('tab') === 'sweep' ? 'sweep' : 'individual'
@@ -293,13 +312,29 @@ function ReportsContent() {
                         <td className="px-4 py-3 text-[13px]" style={{ color: 'var(--aka-gray-600)' }}>{r.submittedBy}</td>
                         <td className="px-4 py-3 text-[13px]" style={{ color: 'var(--aka-gray-400)' }}>{formatDate(r.completedAt)}</td>
                         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                          <Link
-                            href={`/reports/${r.jobId}?from=reports&tab=${activeTab}`}
-                            className="rounded px-3 py-1 text-[12px] font-semibold"
-                            style={{ border: '1px solid var(--aka-gray-200)', color: 'var(--aka-gray-600)', background: '#fff' }}
-                          >
-                            View →
-                          </Link>
+                          <div className="flex items-center gap-1.5 justify-end">
+                            <Link
+                              href={`/reports/${r.jobId}?from=reports&tab=${activeTab}`}
+                              className="rounded px-3 py-1 text-[12px] font-semibold"
+                              style={{ border: '1px solid var(--aka-gray-200)', color: 'var(--aka-gray-600)', background: '#fff' }}
+                            >
+                              View →
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={ev => deleteReport(r, ev)}
+                              disabled={deleting === r.reportId}
+                              title="Delete report"
+                              aria-label={`Delete report for ${r.modelName}`}
+                              className="rounded px-2 py-1 text-[12px] font-semibold disabled:opacity-50"
+                              style={{ border: '1px solid var(--aka-gray-200)', color: '#991b1b', background: '#fff', cursor: deleting === r.reportId ? 'wait' : 'pointer' }}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))

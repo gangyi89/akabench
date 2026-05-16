@@ -100,3 +100,47 @@ CREATE TABLE IF NOT EXISTS job_status (
 );
 
 CREATE INDEX IF NOT EXISTS job_status_status_idx ON job_status (status);
+
+-- ---------------------------------------------------------------------------
+-- reports — owned by job controller
+-- A denormalised snapshot of a successful benchmark run. Lives independently
+-- of `jobs` so the two can be deleted on their own schedules:
+--   delete_job  → wipes jobs + cascades to job_status/job_dlq; leaves reports
+--   delete_rpt  → wipes reports row + S3 prefix; leaves jobs
+-- job_id is intentionally NOT a foreign key — no cascade across the boundary.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS reports (
+    report_id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id              UUID,                                -- snapshot, no FK
+    submitted_by        TEXT         NOT NULL,
+    model_id            TEXT         NOT NULL,
+    model_name          TEXT,                                -- snapshot of models.display_name
+    engine              TEXT         NOT NULL,
+    engine_image        TEXT,
+    quantisation        TEXT,
+    dtype               TEXT,
+    kv_cache_dtype      TEXT,
+    gpu_type            TEXT         NOT NULL,
+    max_model_len       INT,
+    gpu_memory_util     NUMERIC(4,3),
+    max_batch_size      INT,
+    prefix_caching      BOOLEAN,
+    chunked_prefill     BOOLEAN,
+    flash_attention     BOOLEAN,
+    batch_scheduler     TEXT,
+    cuda_graphs         BOOLEAN,
+    concurrency         INT,
+    concurrency_levels  TEXT,
+    input_tokens_mean   INT,
+    output_tokens_mean  INT,
+    request_count       INT,
+    streaming           BOOLEAN,
+    measurement_window  INT,
+    isl_distribution    TEXT,
+    backend             TEXT,
+    completed_at        TIMESTAMPTZ  NOT NULL,
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS reports_completed_at_idx ON reports (completed_at DESC);
+CREATE INDEX IF NOT EXISTS reports_job_id_idx       ON reports (job_id);

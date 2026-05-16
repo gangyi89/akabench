@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
 import useSWR from 'swr'
 import TopNav from '@/components/shared/TopNav'
@@ -320,6 +320,7 @@ function LogsViewer({ jobId, engineLabel }: { jobId: string; engineLabel: string
 
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const fromReport = searchParams.get('from') === 'report'
   const { data: job, error, isLoading } = useSWR<JobDetail>(
@@ -333,6 +334,27 @@ export default function JobDetailPage() {
   // null = not yet overridden by user; derive from job status automatically
   const [userTab, setUserTab] = useState<'specs' | 'logs' | null>(null)
   const mainTab: 'specs' | 'logs' = userTab ?? (job?.status === 'failed' ? 'logs' : 'specs')
+
+  const [deleting, setDeleting] = useState(false)
+  async function handleDelete() {
+    if (!job) return
+    const label = `${job.modelName} (${job.id.slice(0, 8)})`
+    if (!window.confirm(`Delete job "${label}"?\n\nThis will:\n• Cancel the K8s Job if still running\n• Remove job rows from the database\n\nThe report (if any) and S3 result files are kept. This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        alert(`Delete failed: ${body.error ?? res.statusText}`)
+        setDeleting(false)
+        return
+      }
+      router.push('/jobs')
+    } catch (err) {
+      alert(`Delete failed: ${err instanceof Error ? err.message : 'unknown error'}`)
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: 'var(--aka-gray-100)' }}>
@@ -357,26 +379,41 @@ export default function JobDetailPage() {
         {job && (
           <>
             {/* Title row */}
-            <div className="mb-6">
-              <div className="flex items-center gap-2">
-                <h1 className="text-[20px] font-extrabold leading-tight" style={{ color: 'var(--aka-gray-900)' }}>
-                  {job.modelName}
-                </h1>
-                {job.concurrencyLevels && job.concurrencyLevels.length > 0 && (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
-                    style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                    </svg>
-                    Sweep
-                  </span>
-                )}
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-[20px] font-extrabold leading-tight" style={{ color: 'var(--aka-gray-900)' }}>
+                    {job.modelName}
+                  </h1>
+                  {job.concurrencyLevels && job.concurrencyLevels.length > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+                      style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                      </svg>
+                      Sweep
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-[13px]" style={{ color: 'var(--aka-gray-500)' }}>
+                  {job.modelId} · {engineLabel} · {job.quantisation?.toUpperCase() ?? '—'} · {job.gpuName}
+                </p>
               </div>
-              <p className="mt-1 text-[13px]" style={{ color: 'var(--aka-gray-500)' }}>
-                {job.modelId} · {engineLabel} · {job.quantisation?.toUpperCase() ?? '—'} · {job.gpuName}
-              </p>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold disabled:opacity-50"
+                style={{ border: '1.5px solid #fecaca', background: '#fff', color: '#991b1b', cursor: deleting ? 'wait' : 'pointer' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+                </svg>
+                {deleting ? 'Deleting…' : 'Delete Job'}
+              </button>
             </div>
 
             {/* Two-column layout */}

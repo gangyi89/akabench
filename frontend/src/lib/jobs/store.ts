@@ -164,6 +164,7 @@ function rowToJobDetail(row: JobDetailRow): JobDetail {
 }
 
 type ReportListRow = {
+  reportId:         string
   jobId:            string
   modelId:          string
   modelName:        string | null
@@ -177,29 +178,28 @@ type ReportListRow = {
   requestCount:     number
 }
 
-export async function listCompletedJobs(): Promise<ReportListItem[]> {
+export async function listReports(): Promise<ReportListItem[]> {
   const rows = await sql<ReportListRow[]>`
     SELECT
-      j.job_id              AS "jobId",
-      j.model_id            AS "modelId",
-      m.display_name        AS "modelName",
-      j.engine,
-      j.quantisation,
-      j.gpu_type            AS "gpuId",
-      j.submitted_by        AS "submittedBy",
-      js.completed_at       AS "completedAt",
-      j.concurrency,
-      j.concurrency_levels  AS "concurrencyLevels",
-      j.request_count       AS "requestCount"
-    FROM jobs j
-    JOIN job_status js ON js.job_id = j.job_id
-    LEFT JOIN models m ON m.hf_repo_id = j.model_id
-    WHERE js.status = 'complete'
-    ORDER BY js.completed_at DESC
+      report_id           AS "reportId",
+      job_id              AS "jobId",
+      model_id            AS "modelId",
+      model_name          AS "modelName",
+      engine,
+      quantisation,
+      gpu_type            AS "gpuId",
+      submitted_by        AS "submittedBy",
+      completed_at        AS "completedAt",
+      concurrency,
+      concurrency_levels  AS "concurrencyLevels",
+      request_count       AS "requestCount"
+    FROM reports
+    ORDER BY completed_at DESC
   `
   return rows.map(row => {
     const gpu = getGpu(row.gpuId)
     return {
+      reportId:          row.reportId,
       jobId:             row.jobId,
       modelId:           row.modelId,
       modelName:         row.modelName ?? row.modelId.split('/').pop() ?? row.modelId,
@@ -214,6 +214,57 @@ export async function listCompletedJobs(): Promise<ReportListItem[]> {
       completedAt:       row.completedAt.toISOString(),
     }
   })
+}
+
+type ReportDetailRow = JobDetailRow & {
+  reportId: string
+}
+
+/** Hydrate the report detail page from the `reports` snapshot.
+ *  Lookup key is job_id (matches the URL pattern `/reports/<job_id>`). */
+export async function getReportDetail(jobId: string): Promise<(JobDetail & { reportId: string }) | null> {
+  const rows = await sql<ReportDetailRow[]>`
+    SELECT
+      report_id           AS "reportId",
+      job_id              AS id,
+      job_id              AS "jobId",
+      model_id            AS "modelId",
+      model_name          AS "modelName",
+      engine,
+      quantisation,
+      gpu_type            AS "gpuId",
+      submitted_by        AS "submittedBy",
+      created_at          AS "submittedAt",
+      'complete'          AS status,
+      NULL::text          AS error,
+      completed_at        AS "completedAt",
+      engine_image        AS "engineImage",
+      dtype,
+      kv_cache_dtype      AS "kvCacheDtype",
+      max_model_len       AS "maxModelLen",
+      gpu_memory_util     AS "gpuMemoryUtil",
+      max_batch_size      AS "maxBatchSize",
+      prefix_caching      AS "prefixCaching",
+      chunked_prefill     AS "chunkedPrefill",
+      flash_attention     AS "flashAttention",
+      batch_scheduler     AS "batchScheduler",
+      cuda_graphs         AS "cudaGraphs",
+      concurrency,
+      concurrency_levels  AS "concurrencyLevels",
+      input_tokens_mean   AS "inputTokensMean",
+      output_tokens_mean  AS "outputTokensMean",
+      request_count       AS "requestCount",
+      streaming,
+      measurement_window  AS "measurementWindow",
+      isl_distribution    AS "islDistribution",
+      backend
+    FROM reports
+    WHERE job_id = ${jobId}
+    LIMIT 1
+  `
+  if (!rows[0]) return null
+  const detail = rowToJobDetail(rows[0])
+  return { ...detail, reportId: rows[0].reportId }
 }
 
 export async function getJobDetail(id: string): Promise<JobDetail | null> {

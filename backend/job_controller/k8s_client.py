@@ -99,6 +99,25 @@ def _get_pod_logs_sync(pod_name: str, container: str, tail_lines: int | None = 6
     return "[Could not retrieve container logs]"
 
 
+def _delete_job_sync(k8s_job_name: str) -> bool:
+    """Delete a K8s Job and its pods. Returns True if the Job existed.
+
+    Uses Foreground propagation so the API call doesn't return until the
+    dependent pods have started terminating.
+    """
+    try:
+        _batch.delete_namespaced_job(
+            name=k8s_job_name,
+            namespace=_NAMESPACE,
+            body=client.V1DeleteOptions(propagation_policy="Foreground"),
+        )
+        return True
+    except client.exceptions.ApiException as exc:
+        if exc.status == 404:
+            return False
+        raise
+
+
 def _fail_job_sync(k8s_job_name: str) -> None:
     """Force a Job into a Failed state via activeDeadlineSeconds=1.
 
@@ -145,3 +164,8 @@ async def get_container_logs(pod_name: str, container: str, tail_lines: int | No
 async def fail_job(k8s_job_name: str) -> None:
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, partial(_fail_job_sync, k8s_job_name))
+
+
+async def delete_job(k8s_job_name: str) -> bool:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, partial(_delete_job_sync, k8s_job_name))

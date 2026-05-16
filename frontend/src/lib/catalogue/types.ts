@@ -234,9 +234,10 @@ export type SweepPoint = {
   throughputAvg: number  // tok/s total
 }
 
-/** Row in the reports listing — derived from completed jobs, no S3 needed */
+/** Row in the reports listing — sourced from the `reports` table */
 export type ReportListItem = {
-  jobId:            string
+  reportId:         string   // PK of the reports row — used for deletion
+  jobId:            string   // also the S3 prefix; used to fetch the report's files
   modelId:          string
   modelName:        string
   engine:           EngineType

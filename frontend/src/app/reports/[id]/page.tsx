@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 import useSWR from 'swr'
 import TopNav from '@/components/shared/TopNav'
 import EngineBadge from '@/components/shared/EngineBadge'
@@ -206,9 +207,11 @@ function KVRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function ReportDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const from = searchParams.get('from')
   const tab  = searchParams.get('tab')
+  const [deleting, setDeleting] = useState(false)
   const backHref  = from === 'jobs' ? `/jobs/${id}` : `/reports${tab ? `?tab=${tab}` : ''}`
   const backLabel = from === 'jobs' ? '← Back to Job' : '← Back to Reports'
   const { data, error, isLoading } = useSWR<ReportData>(
@@ -283,24 +286,53 @@ export default function ReportDetailPage() {
                   {job.modelId} · {engineLabel} · {job.quantisation?.toUpperCase() ?? '—'} · {job.gpuName}
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  const prev = document.title
-                  document.title = `${job.modelName} — ${engineLabel} ${job.quantisation?.toUpperCase() ?? ''} · ${job.gpuName}`
-                  window.print()
-                  document.title = prev
-                }}
-                data-print-hide
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold cursor-pointer"
-                style={{ border: '1.5px solid var(--aka-blue)', background: 'var(--aka-light)', color: 'var(--aka-blue)' }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 6 2 18 2 18 9" />
-                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                  <rect x="6" y="14" width="12" height="8" />
-                </svg>
-                Export PDF
-              </button>
+              <div className="flex items-center gap-2" data-print-hide>
+                <button
+                  onClick={() => {
+                    const prev = document.title
+                    document.title = `${job.modelName} — ${engineLabel} ${job.quantisation?.toUpperCase() ?? ''} · ${job.gpuName}`
+                    window.print()
+                    document.title = prev
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold cursor-pointer"
+                  style={{ border: '1.5px solid var(--aka-blue)', background: 'var(--aka-light)', color: 'var(--aka-blue)' }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 6 2 18 2 18 9" />
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <rect x="6" y="14" width="12" height="8" />
+                  </svg>
+                  Export PDF
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Delete report for "${job.modelName}"?\n\nThis will:\n• Remove the report row from the database\n• Delete all S3 result files under ${id}/\n\nThe original job record (if it still exists) is kept. This cannot be undone.`)) return
+                    setDeleting(true)
+                    try {
+                      const res = await fetch(`/api/reports/${id}`, { method: 'DELETE' })
+                      if (!res.ok) {
+                        const body = await res.json().catch(() => ({}))
+                        alert(`Delete failed: ${body.error ?? res.statusText}`)
+                        setDeleting(false)
+                        return
+                      }
+                      router.push('/reports')
+                    } catch (err) {
+                      alert(`Delete failed: ${err instanceof Error ? err.message : 'unknown error'}`)
+                      setDeleting(false)
+                    }
+                  }}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold disabled:opacity-50"
+                  style={{ border: '1.5px solid #fecaca', background: '#fff', color: '#991b1b', cursor: deleting ? 'wait' : 'pointer' }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+                  </svg>
+                  {deleting ? 'Deleting…' : 'Delete Report'}
+                </button>
+              </div>
             </div>
 
             <div className="grid gap-4" data-print-layout style={{ gridTemplateColumns: '1fr 280px', alignItems: 'start' }}>

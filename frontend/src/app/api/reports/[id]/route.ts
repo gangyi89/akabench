@@ -1,9 +1,11 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getJobDetail } from '@/lib/jobs/store'
+import { getReportDetail } from '@/lib/jobs/store'
 import { getSession, unauthorizedResponse } from '@/lib/auth/session'
 import type { AiperfResults, SweepPoint } from '@/lib/catalogue/types'
+
+const CONTROLLER_URL = process.env.JOB_CONTROLLER_URL ?? 'http://job-controller:8080'
 
 // S3 credentials live in server-side env vars only — never exposed to the browser.
 // This route handler runs server-side and proxies the S3 content.
@@ -42,15 +44,12 @@ export async function GET(
 
   const { id } = await ctx.params
 
-  const job = await getJobDetail(id)
+  // Lookup is by job_id (matches the URL pattern `/reports/<job_id>`). The
+  // `reports` table is populated only on successful completion, so finding a
+  // row here is itself the "is complete" check — no separate status gate.
+  const job = await getReportDetail(id)
   if (!job) {
-    return NextResponse.json({ error: 'Job not found', code: 'JOB_NOT_FOUND' }, { status: 404 })
-  }
-  if (job.status !== 'complete') {
-    return NextResponse.json(
-      { error: 'Report only available for completed jobs', code: 'JOB_NOT_COMPLETE' },
-      { status: 409 },
-    )
+    return NextResponse.json({ error: 'Report not found', code: 'REPORT_NOT_FOUND' }, { status: 404 })
   }
 
   const bucket = process.env.S3_BUCKET
@@ -120,4 +119,39 @@ export async function GET(
     const message = err instanceof Error ? err.message : 'Failed to fetch results from storage'
     return NextResponse.json({ error: message, code: 'S3_FETCH_ERROR' }, { status: 502 })
   }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const session = await getSession(req)
+  if (!session) return unauthorizedResponse()
+
+  // The URL still uses job_id; resolve to report_id so the controller can
+  // unambiguously target the reports row to remove.
+  const { id } = await ctx.params
+  const report = await getReportDetail(id)
+  if (!report) {
+    return NextResponse.json({ error: 'Report not found', code: 'REPORT_NOT_FOUND' }, { status: 404 })
+  }
+
+  let res: Response
+  try {
+    res = await fetch(`${CONTROLLER_URL}/reports/${report.reportId}`, { method: 'DELETE' })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'fetch failed'
+    return NextResponse.json(
+      { error: `Could not reach job controller at ${CONTROLLER_URL}: ${message}`, code: 'CONTROLLER_UNREACHABLE' },
+      { status: 502 },
+    )
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    return NextResponse.json(
+      { error: `Controller delete failed: ${res.status} ${detail}`, code: 'CONTROLLER_ERROR' },
+      { status: 502 },
+    )
+  }
+  return new NextResponse(null, { status: 204 })
 }
